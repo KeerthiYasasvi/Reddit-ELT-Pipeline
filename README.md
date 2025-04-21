@@ -53,7 +53,8 @@ Before you begin, make sure you have:
 
 ## How to Install and Run the Project
 
-1. **Clone the repository**  
+1. **Clone the repository**
+   
    ```bash
    git clone https://github.com/KeerthiYasasvi/reddit_data_pipeline.git
    cd reddit_data_pipeline
@@ -64,9 +65,10 @@ Before you begin, make sure you have:
      ```bash
      cp .env.example .env
 
-   Fill in your Reddit API credentials and Postgres password in the .env file
+     *Fill in your Reddit API credentials and Postgres password in the .env file*
 
-4. **Enter the subreddit name in the DAG file**
+3. **Enter the subreddit name in the DAG file**
+   
   ```
     with DAG('reddit_pipeline', default_args=default_args, schedule_interval=timedelta(hours=12), description='Reddit ELT pipeline', catchup=False) as dag:
     
@@ -80,26 +82,29 @@ Before you begin, make sure you have:
     Build the Docker images and launch:
       docker-compose up --build -d
 
-6. **Initialize Airflow**
+5. **Initialize Airflow**
    
     The airflow-init service will automatically run the database migrations and create the default admin/admin user on first start. Wait a minute for it to complete, then stop and restart the stack:
   
       docker-compose down
       docker-compose up -d
 
-8. **Verify the setup**
+6. **Verify the setup**
    
     Airflow UI runs on: http://localhost:8080 (login: admin / paswword: admin)
     dbt debug:
-      docker-compose run dbt dbt debug --profiles-dir /usr/app
+   
+      ```docker-compose run dbt dbt debug --profiles-dir /usr/app```
   
     Open another powershell window and check Postgres:
-      docker exec -it reddit_pipeline-postgres-1 psql -U postgres -d reddit_pipeline -c "\dt"
+   
+      ```docker exec -it reddit_pipeline-postgres-1 psql -U postgres -d reddit_pipeline -c "\dt"```
 
-10. **Trigger the pipeline**
+8. **Trigger the pipeline**
     
     Airflow: Enable and trigger the reddit_pipeline DAG in the UI. (it will run every 12 hours by default)
     Change schedule_interval, timedelta in the DAG file from: minutes, hours, days, weeks
+   
     ```with DAG('reddit_pipeline', default_args=default_args, **schedule_interval=timedelta(hours=12)**, description='Reddit ELT pipeline', catchup=False) as dag:```
 
 ---
