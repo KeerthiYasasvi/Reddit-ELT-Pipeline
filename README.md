@@ -66,8 +66,6 @@ Before you begin, make sure you have:
      ```bash
      cp .env.example .env
 
-     
-
 3. **Enter the subreddit name in the DAG file**
    
       ```
@@ -126,7 +124,5 @@ Before you begin, make sure you have:
 
 **Tips for Recreating Locally**
 
-- Ensure **Docker Desktop** (or Docker Engine) and **Docker Compose** are running before starting the stack.  
-- On Windows, use **WSL2** or adjust volume mounts if you encounter path issues.  
-- Copy `.env.example` to `.env` and fill in your Reddit API keys and Postgres credentials before `docker-compose up`.  
+- Ensure **Docker Desktop** (or Docker Engine) and **Docker Compose** are running before starting the stack.    
 - If you hit module‑import errors in Airflow (e.g. `No module named 'etls'`), verify that `etls/` has an `__init__.py` and is correctly mounted under `/opt/airflow/etls`.  
