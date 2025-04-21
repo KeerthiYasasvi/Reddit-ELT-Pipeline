@@ -63,9 +63,10 @@ Before you begin, make sure you have:
    
    Copy the example file and open .env in your editor:
    
-     ```bash cp .env.example .env```
+     ```bash
+     cp .env.example .env```
 
-     Fill in your Reddit API credentials and Postgres password in the .env file
+  Fill in your Reddit API credentials and Postgres password in the .env file
 
 4. **Enter the subreddit name in the DAG file**
    
