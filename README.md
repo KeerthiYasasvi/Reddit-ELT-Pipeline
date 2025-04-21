@@ -62,20 +62,20 @@ Before you begin, make sure you have:
 2. **Configure environment variables**
    
    Copy the example file and open .env in your editor:
-     ```bash
-     cp .env.example .env
+   
+     ```cp .env.example .env```
 
-     *Fill in your Reddit API credentials and Postgres password in the .env file*
+     Fill in your Reddit API credentials and Postgres password in the .env file
 
 3. **Enter the subreddit name in the DAG file**
    
-  ```
-    with DAG('reddit_pipeline', default_args=default_args, schedule_interval=timedelta(hours=12), description='Reddit ELT pipeline', catchup=False) as dag:
-    
-    current_time = datetime.datetime.now().strftime("%Y%m%d")
-    subreddit = 'ENTER_SUBREDDIT_NAME_HERE'
-    file_name = f'reddit_{subreddit}_{current_time}'
-  ```
+      ```
+        with DAG('reddit_pipeline', default_args=default_args, schedule_interval=timedelta(hours=12), description='Reddit ELT pipeline', catchup=False) as dag:
+        
+        current_time = datetime.datetime.now().strftime("%Y%m%d")
+        subreddit = 'ENTER_SUBREDDIT_NAME_HERE'
+        file_name = f'reddit_{subreddit}_{current_time}'
+      ```
 
 4. **Start all services**
    
