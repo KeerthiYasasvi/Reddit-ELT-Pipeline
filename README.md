@@ -61,14 +61,14 @@ Before you begin, make sure you have:
 
 2. **Configure environment variables**
    
-   Copy the example file and open .env in your editor:
+   Copy the example file and open .env in your editor and Fill in your Reddit API credentials and Postgres password in the .env file:
    
      ```bash
-     cp .env.example .env```
+     cp .env.example .env
 
-  Fill in your Reddit API credentials and Postgres password in the .env file
+     
 
-4. **Enter the subreddit name in the DAG file**
+3. **Enter the subreddit name in the DAG file**
    
       ```
         with DAG('reddit_pipeline', default_args=default_args, schedule_interval=timedelta(hours=12), description='Reddit ELT pipeline', catchup=False) as dag:
@@ -78,28 +78,27 @@ Before you begin, make sure you have:
         file_name = f'reddit_{subreddit}_{current_time}'
       ```
 
-5. **Start all services**
+4. **Start all services**
    
     Build the Docker images and launch:
       docker-compose up --build -d
 
-6. **Initialize Airflow**
+5. **Initialize Airflow**
    
     The airflow-init service will automatically run the database migrations and create the default admin/admin user on first start. Wait a minute for it to complete, then stop and restart the stack:
   
       docker-compose down
       docker-compose up -d
 
-7. **Verify the setup**
+6. **Verify the setup**
    
     Airflow UI runs on: http://localhost:8080 (login: admin / paswword: admin)
     dbt debug:
    
-      ```docker-compose run dbt dbt debug --profiles-dir /usr/app```
-  
-    Open another powershell window and check Postgres:
+      ```bash
+    docker-compose run dbt dbt debug --profiles-dir /usr/app
    
-      ```docker exec -it reddit_pipeline-postgres-1 psql -U postgres -d reddit_pipeline -c "\dt"```
+    docker exec -it reddit_pipeline-postgres-1 psql -U postgres -d reddit_pipeline -c "\dt"
 
 8. **Trigger the pipeline**
     
