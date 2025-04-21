@@ -26,7 +26,7 @@ A containerized ELT workflow that extracts top posts from Reddit, loads raw data
 [ Airflow Scheduler ]   ──▶ [ extract_post (PythonOperator) ] ──▶ [ raw_posts (Postgres) ]
                            │
                            └─▶ [ dbt_transform (BashOperator) ] ──▶ [ dbt (stg → dims → fact → marts) ] ──▶ [ Postgres ]
-
+```
 ---
 
 ## Table of Contents
