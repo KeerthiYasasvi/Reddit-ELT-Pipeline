@@ -61,7 +61,8 @@ Before you begin, make sure you have:
 2. **Configure environment variables**
    
    Copy the example file and open .env in your editor:
-     ```cp .env.example .env```
+     ```bash
+     cp .env.example .env
 
    Fill in your Reddit API credentials and Postgres password in the .env file
 
