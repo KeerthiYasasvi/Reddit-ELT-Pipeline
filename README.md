@@ -55,10 +55,11 @@ Before you begin, make sure you have:
 
 1. **Clone the repository**  
    ```bash
-   git clone https://github.com/<your‑username>/reddit_data_pipeline.git
+   git clone https://github.com/KeerthiYasasvi/reddit_data_pipeline.git
    cd reddit_data_pipeline
 
 2. **Configure environment variables**
+   
    Copy the example file and open .env in your editor:
      ```cp .env.example .env```
 
@@ -74,16 +75,19 @@ Before you begin, make sure you have:
   ```
 
 4. **Start all services**
+   
     Build the Docker images and launch:
       docker-compose up --build -d
 
-5. **Initialize Airflow**
+6. **Initialize Airflow**
+   
     The airflow-init service will automatically run the database migrations and create the default admin/admin user on first start. Wait a minute for it to complete, then stop and restart the stack:
   
       docker-compose down
       docker-compose up -d
 
-6. **Verify the setup**
+8. **Verify the setup**
+   
     Airflow UI runs on: http://localhost:8080 (login: admin / paswword: admin)
     dbt debug:
       docker-compose run dbt dbt debug --profiles-dir /usr/app
@@ -91,7 +95,8 @@ Before you begin, make sure you have:
     Open another powershell window and check Postgres:
       docker exec -it reddit_pipeline-postgres-1 psql -U postgres -d reddit_pipeline -c "\dt"
 
-7. **Trigger the pipeline**
+10. **Trigger the pipeline**
+    
     Airflow: Enable and trigger the reddit_pipeline DAG in the UI. (it will run every 12 hours by default)
     Change schedule_interval, timedelta in the DAG file from: minutes, hours, days, weeks
     ```with DAG('reddit_pipeline', default_args=default_args, **schedule_interval=timedelta(hours=12)**, description='Reddit ELT pipeline', catchup=False) as dag:```
