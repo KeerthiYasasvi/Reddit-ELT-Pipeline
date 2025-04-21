@@ -1,0 +1,15 @@
+FROM apache/airflow:2.10.2-python3.10
+
+# 1. Install OS‑level deps as root
+USER root
+RUN apt-get update \
+    && apt-get install -y gcc python3-dev cargo \
+    && apt-get clean
+
+# 2. Switch to the airflow user for all pip installs
+USER airflow
+COPY requirements.txt /opt/airflow/
+WORKDIR /opt/airflow
+RUN pip install -r requirements.txt
+
+RUN pip install dbt-core dbt-postgres

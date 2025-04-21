@@ -1,0 +1,74 @@
+version: 2
+
+models:
+  - name: author_performance_summary
+    description: "Per‑author metrics: total posts, average score/comments, cumulative engagement"
+    columns:
+      - name: author_id
+        description: "Foreign key to dim_author"
+        tests:
+          - not_null
+      - name: total_posts
+        description: "Number of posts made by the author"
+      - name: avg_score
+        description: "Average score across all posts"
+      - name: avg_comments
+        description: "Average comment count across all posts"
+      - name: total_engagement
+        description: "Sum of engagement metric (score + comments) across all posts"
+      - name: first_seen_utc
+        description: "When the author first appeared in our data"
+
+  - name: time_based_engagement_analysis
+    description: "Engagement metrics aggregated by hour of day"
+    columns:
+      - name: hour_of_day
+        description: "Hour of the day (0–23)"
+        tests:
+          - not_null
+          - unique
+      - name: avg_engagement
+        description: "Average engagement (score + comments) across posts in that hour"
+      - name: total_engagement
+        description: "Total engagement across all posts in that hour"
+      - name: post_count
+        description: "Number of posts published in that hour"
+
+  - name: posts_summary
+    description: "A flat view of each post joined with author and time attributes"
+    columns:
+      - name: post_id
+        description: "The Reddit post ID"
+      - name: score
+        description: "The post's score"
+      - name: num_comments
+        description: "Number of comments"
+      - name: engagement
+        description: "Score + num_comments"
+      - name: author_id
+        description: "Foreign key to dim_author"
+      - name: first_seen_utc
+        description: "When the author first appeared in our data"
+      - name: timestamp_hour
+        description: "The hourly bucket of the post timestamp"
+      - name: date
+        description: "Date portion of the timestamp"
+      - name: hour_of_day
+        description: "Hour (0–23) the post was created"
+      - name: day_of_week
+        description: "Weekday name"
+      - name: is_weekend
+        description: "True if the post was on Saturday or Sunday"
+
+  - name: high_engagement_posts
+    description: "Posts whose engagement is above the overall average engagement"
+    columns:
+      - name: post_id
+        description: "The Reddit post ID"
+        tests:
+          - not_null
+          - unique
+      - name: engagement
+        description: "Score + comments, filtered to above-average values"
+
+# add other columns if you wish

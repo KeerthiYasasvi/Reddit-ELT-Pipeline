@@ -1,0 +1,8 @@
+# Use the official dbt-core image as the base
+FROM ghcr.io/dbt-labs/dbt-core:1.9.4
+
+# Install the dbt-postgres adapter package
+RUN pip install dbt-postgres
+
+# Set the working directory inside the container
+WORKDIR /usr/app

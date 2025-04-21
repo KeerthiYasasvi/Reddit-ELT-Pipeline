@@ -1,0 +1,32 @@
+version: 2
+
+models:
+  - name: dim_author
+    description: "Unique Reddit authors and when they first appeared in our data"
+    columns:
+      - name: author_id
+        description: "The Reddit username (as text) used as the primary key"
+        tests:
+          - not_null
+          - unique
+      - name: first_seen_utc
+        description: "Earliest timestamp we saw that author in stg_posts"
+
+  - name: dim_time
+    description: "A time dimension with one row per hour, used to join post timestamps into buckets"
+    columns:
+      - name: time_id
+        description: "Surrogate key for each hourly time bucket"
+        tests:
+          - unique
+          - not_null
+      - name: timestamp_hour
+        description: "The timestamp rounded down to the nearest hour"
+      - name: date
+        description: "Date portion of the timestamp_hour"
+      - name: hour_of_day
+        description: "Hour of day (0–23) extracted from the timestamp_hour"
+      - name: day_of_week
+        description: "Name of the weekday (e.g., Monday) for timestamp_hour"
+      - name: is_weekend
+        description: "Boolean flag: true if the timestamp falls on Saturday or Sunday"

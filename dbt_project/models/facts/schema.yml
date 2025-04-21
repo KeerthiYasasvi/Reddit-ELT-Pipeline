@@ -1,0 +1,25 @@
+version: 2
+
+models:
+  - name: fact_posts
+    description: "Fact table of Reddit posts, linked to author and time dimensions"
+    columns:
+      - name: post_id
+        description: "The Reddit post ID (primary key of this table)"
+        tests:
+          - unique
+          - not_null
+      - name: author_id
+        description: "Foreign key to dim_author"
+        tests:
+          - not_null
+      - name: time_id
+        description: "Foreign key to dim_time"
+        tests:
+          - not_null
+      - name: score
+        description: "Post score"
+      - name: num_comments
+        description: "Number of comments on the post"
+      - name: engagement
+        description: "Derived metric: score + num_comments"

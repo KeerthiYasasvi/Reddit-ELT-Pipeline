@@ -1,0 +1,12 @@
+reddit_dbt_project:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: postgres          # Use the docker-compose service name for Postgres
+      user: postgres          # Must match the credentials in your docker-compose file
+      password: "Your_Password_here"  # Your Postgres password
+      port: 5432          # Default Postgres port
+      dbname: reddit_pipeline   # This is the database name you set in docker-compose
+      schema: public            # This is where dbt will create tables (you can change it if needed)
+      threads: 1
