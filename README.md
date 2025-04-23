@@ -67,7 +67,7 @@ Before you begin, make sure you have:
      cp .env.example .env
 
 3. **Enter the subreddit name in the DAG file**
-   
+
       ```
         with DAG('reddit_pipeline', default_args=default_args, schedule_interval=timedelta(hours=12), description='Reddit ELT pipeline', catchup=False) as dag:
         
@@ -75,20 +75,60 @@ Before you begin, make sure you have:
         subreddit = 'ENTER_SUBREDDIT_NAME_HERE'
         file_name = f'reddit_{subreddit}_{current_time}'
       ```
+   
+5. **Configure your extract script**
 
-4. **Start all services**
+   In etls/extract.py, ensure the PRAW client uses your credentials. It should read from environment variables:
+
+   ```
+   def extract_post(...):
+    reddit = Reddit(
+        client_id=os.getenv("client_id"),
+        client_secret=os.getenv("secret_key"),
+        user_agent=os.getenv("user_agent")
+    )
+    ```
+
+7. **Verify Postgres settings in Docker Compose:**
+
+   Open docker-compose.yml and under the postgres: service, confirm:
+
+    ```
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: YOUR_POSTGRES_PASSWORD
+    POSTGRES_DB: reddit_pipeline
+    ```
+
+9.  **Update your dbt profiles:**
+
+    In profiles.yml, make sure the target connection matches:
+
+    ```
+    outputs:
+      dev:
+        type: postgres
+        host: postgres
+        port: 5432
+        user: postgres
+        password: YOUR_POSTGRES_PASSWORD
+        dbname: reddit_pipeline
+        schema: public
+    target: dev
+    ```
+    
+11.    **Start all services**
    
     Build the Docker images and launch:
       docker-compose up --build -d
 
-5. **Initialize Airflow**
+11. **Initialize Airflow**
    
     The airflow-init service will automatically run the database migrations and create the default admin/admin user on first start. Wait a minute for it to complete, then stop and restart the stack:
   
       docker-compose down
       docker-compose up -d
 
-6. **Verify the setup**
+12. **Verify the setup**
    
     Airflow UI runs on: http://localhost:8080 (login: admin / paswword: admin)
     dbt debug:
@@ -98,7 +138,7 @@ Before you begin, make sure you have:
    
     docker exec -it reddit_pipeline-postgres-1 psql -U postgres -d reddit_pipeline -c "\dt"
 
-8. **Trigger the pipeline**
+13. **Trigger the pipeline**
     
     Airflow: Enable and trigger the reddit_pipeline DAG in the UI. (it will run every 12 hours by default)
     Change schedule_interval, timedelta in the DAG file from: minutes, hours, days, weeks
