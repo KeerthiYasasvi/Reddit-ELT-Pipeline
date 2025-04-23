@@ -76,7 +76,7 @@ Before you begin, make sure you have:
         file_name = f'reddit_{subreddit}_{current_time}'
       ```
    
-5. **Configure your extract script**
+4. **Configure your extract script**
 
    In etls/extract.py, ensure the PRAW client uses your credentials. It should read from environment variables:
 
@@ -89,7 +89,7 @@ Before you begin, make sure you have:
     )
     ```
 
-7. **Verify Postgres settings in Docker Compose:**
+5. **Verify Postgres settings in Docker Compose:**
 
    Open docker-compose.yml and under the postgres: service, confirm:
 
@@ -99,7 +99,7 @@ Before you begin, make sure you have:
     POSTGRES_DB: reddit_pipeline
     ```
 
-9.  **Update your dbt profiles:**
+6.  **Update your dbt profiles:**
 
     In profiles.yml, make sure the target connection matches:
 
@@ -116,19 +116,21 @@ Before you begin, make sure you have:
     target: dev
     ```
     
-11.    **Start all services**
-   
-    Build the Docker images and launch:
-      docker-compose up --build -d
+7.    **Start all services**
+  
+     ```
+      Build the Docker images and launch:
+        docker-compose up --build -d
+    ```
 
-11. **Initialize Airflow**
+8. **Initialize Airflow**
    
     The airflow-init service will automatically run the database migrations and create the default admin/admin user on first start. Wait a minute for it to complete, then stop and restart the stack:
   
       docker-compose down
       docker-compose up -d
 
-12. **Verify the setup**
+9. **Verify the setup**
    
     Airflow UI runs on: http://localhost:8080 (login: admin / paswword: admin)
     dbt debug:
@@ -138,7 +140,7 @@ Before you begin, make sure you have:
    
     docker exec -it reddit_pipeline-postgres-1 psql -U postgres -d reddit_pipeline -c "\dt"
 
-13. **Trigger the pipeline**
+10. **Trigger the pipeline**
     
     Airflow: Enable and trigger the reddit_pipeline DAG in the UI. (it will run every 12 hours by default)
     Change schedule_interval, timedelta in the DAG file from: minutes, hours, days, weeks
