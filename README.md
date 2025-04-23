@@ -118,19 +118,18 @@ Before you begin, make sure you have:
     
 7.    **Start all services**
   
-     ```
       Build the Docker images and launch:
-        docker-compose up --build -d
-    ```
 
-8. **Initialize Airflow**
+        docker-compose up --build -d
+
+9. **Initialize Airflow**
    
     The airflow-init service will automatically run the database migrations and create the default admin/admin user on first start. Wait a minute for it to complete, then stop and restart the stack:
   
       docker-compose down
       docker-compose up -d
 
-9. **Verify the setup**
+10. **Verify the setup**
    
     Airflow UI runs on: http://localhost:8080 (login: admin / paswword: admin)
     dbt debug:
@@ -140,7 +139,7 @@ Before you begin, make sure you have:
    
     docker exec -it reddit_pipeline-postgres-1 psql -U postgres -d reddit_pipeline -c "\dt"
 
-10. **Trigger the pipeline**
+11. **Trigger the pipeline**
     
     Airflow: Enable and trigger the reddit_pipeline DAG in the UI. (it will run every 12 hours by default)
     Change schedule_interval, timedelta in the DAG file from: minutes, hours, days, weeks
