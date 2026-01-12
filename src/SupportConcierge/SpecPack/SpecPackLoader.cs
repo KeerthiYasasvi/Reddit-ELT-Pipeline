@@ -8,11 +8,15 @@ public class SpecPackLoader
 {
     private readonly string _specDir;
     private readonly IDeserializer _yamlDeserializer;
+    private readonly ISerializer _yamlSerializer;
 
     public SpecPackLoader(string? specDir = null)
     {
         _specDir = specDir ?? Environment.GetEnvironmentVariable("SUPPORTBOT_SPEC_DIR") ?? ".supportbot";
         _yamlDeserializer = new DeserializerBuilder()
+            .WithNamingConvention(UnderscoredNamingConvention.Instance)
+            .Build();
+        _yamlSerializer = new SerializerBuilder()
             .WithNamingConvention(UnderscoredNamingConvention.Instance)
             .Build();
     }
@@ -32,7 +36,7 @@ public class SpecPackLoader
             
             if (categoriesData.ContainsKey("categories"))
             {
-                var categoriesYaml = _yamlDeserializer.Serialize(categoriesData["categories"]);
+                var categoriesYaml = _yamlSerializer.Serialize(categoriesData["categories"]);
                 config.Categories = _yamlDeserializer.Deserialize<List<Category>>(categoriesYaml);
                 Console.WriteLine($"Loaded {config.Categories.Count} categories");
             }
@@ -52,7 +56,7 @@ public class SpecPackLoader
                 {
                     foreach (var item in checklistsList)
                     {
-                        var checklistYaml = _yamlDeserializer.Serialize(item);
+                        var checklistYaml = _yamlSerializer.Serialize(item);
                         var checklist = _yamlDeserializer.Deserialize<CategoryChecklist>(checklistYaml);
                         config.Checklists[checklist.Category] = checklist;
                     }
