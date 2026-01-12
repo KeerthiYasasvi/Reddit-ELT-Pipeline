@@ -1,0 +1,316 @@
+checklists:
+  - category: setup
+    completeness_threshold: 70
+    required_fields:
+      - name: operating_system
+        description: The operating system being used
+        weight: 15
+        optional: false
+        aliases: [os, platform, system]
+      
+      - name: version
+        description: Version of the software being installed
+        weight: 15
+        optional: false
+        aliases: [software_version, release]
+      
+      - name: installation_method
+        description: How the software was installed
+        weight: 10
+        optional: false
+        aliases: [install_method, how_installed]
+      
+      - name: error_message
+        description: The exact error message encountered
+        weight: 25
+        optional: false
+        aliases: [error, failure_message]
+      
+      - name: steps_to_reproduce
+        description: Steps that lead to the issue
+        weight: 20
+        optional: false
+        aliases: [repro_steps, how_to_reproduce]
+      
+      - name: expected_behavior
+        description: What should have happened
+        weight: 15
+        optional: true
+        aliases: [expected, should_be]
+
+  - category: build
+    completeness_threshold: 75
+    required_fields:
+      - name: operating_system
+        description: The operating system
+        weight: 10
+        optional: false
+        aliases: [os, platform]
+      
+      - name: build_tool_version
+        description: Version of build tool (e.g., npm, maven, dotnet)
+        weight: 15
+        optional: false
+        aliases: [tool_version, compiler_version]
+      
+      - name: project_version
+        description: Version of the project being built
+        weight: 10
+        optional: false
+        aliases: [version, release]
+      
+      - name: error_message
+        description: Build error message or output
+        weight: 30
+        optional: false
+        aliases: [build_error, compile_error]
+      
+      - name: build_command
+        description: The command used to build
+        weight: 15
+        optional: false
+        aliases: [command, build_script]
+      
+      - name: build_log
+        description: Relevant portion of build output
+        weight: 20
+        optional: false
+        aliases: [log, output, console_output]
+
+  - category: runtime
+    completeness_threshold: 80
+    required_fields:
+      - name: operating_system
+        description: The operating system
+        weight: 10
+        optional: false
+        aliases: [os, platform]
+      
+      - name: runtime_version
+        description: Version of runtime environment
+        weight: 15
+        optional: false
+        aliases: [version, node_version, python_version]
+      
+      - name: error_message
+        description: The error or exception message
+        weight: 25
+        optional: false
+        aliases: [exception, error]
+      
+      - name: stack_trace
+        description: Full stack trace if available
+        weight: 25
+        optional: false
+        aliases: [trace, backtrace, callstack]
+      
+      - name: steps_to_reproduce
+        description: Exact steps to trigger the issue
+        weight: 20
+        optional: false
+        aliases: [repro_steps, reproduce]
+      
+      - name: input_data
+        description: Sample input that causes the issue
+        weight: 5
+        optional: true
+        aliases: [test_case, example_input]
+
+  - category: bug
+    completeness_threshold: 75
+    required_fields:
+      - name: operating_system
+        description: The operating system
+        weight: 10
+        optional: false
+        aliases: [os, platform]
+      
+      - name: version
+        description: Software version where bug occurs
+        weight: 15
+        optional: false
+        aliases: [release, build]
+      
+      - name: steps_to_reproduce
+        description: Steps to reproduce the bug
+        weight: 25
+        optional: false
+        aliases: [repro, how_to_reproduce]
+      
+      - name: expected_behavior
+        description: What should happen
+        weight: 20
+        optional: false
+        aliases: [expected, correct_behavior]
+      
+      - name: actual_behavior
+        description: What actually happens
+        weight: 20
+        optional: false
+        aliases: [actual, observed_behavior]
+      
+      - name: screenshots
+        description: Screenshots or recordings if applicable
+        weight: 10
+        optional: true
+        aliases: [images, recording, video]
+
+  - category: docs
+    completeness_threshold: 60
+    required_fields:
+      - name: doc_location
+        description: Which document or page has the issue
+        weight: 30
+        optional: false
+        aliases: [document, page, file]
+      
+      - name: issue_description
+        description: What is wrong or missing
+        weight: 40
+        optional: false
+        aliases: [problem, what_is_wrong]
+      
+      - name: suggested_fix
+        description: Proposed correction or addition
+        weight: 30
+        optional: true
+        aliases: [fix, correction, suggestion]
+
+  # Custom checklist for Reddit-ELT-Pipeline specific issues
+  - category: airflow_dag
+    completeness_threshold: 75
+    required_fields:
+      - name: operating_system
+        description: The operating system running Docker
+        weight: 10
+        optional: false
+        aliases: [os, platform, system]
+      
+      - name: docker_version
+        description: Docker and Docker Compose versions
+        weight: 10
+        optional: false
+        aliases: [docker, compose_version]
+      
+      - name: dag_name
+        description: Name of the failing Airflow DAG
+        weight: 15
+        optional: false
+        aliases: [airflow_dag, pipeline_name]
+      
+      - name: error_message
+        description: Error from Airflow logs or UI
+        weight: 30
+        optional: false
+        aliases: [error, airflow_error, task_failure]
+      
+      - name: airflow_logs
+        description: Relevant Airflow task logs
+        weight: 20
+        optional: false
+        aliases: [logs, task_logs, scheduler_logs]
+      
+      - name: services_status
+        description: Status of docker-compose services
+        weight: 15
+        optional: false
+        aliases: [docker_ps, container_status]
+
+  - category: reddit_api
+    completeness_threshold: 70
+    required_fields:
+      - name: reddit_credentials
+        description: Confirmation that Reddit API credentials are set
+        weight: 20
+        optional: false
+        aliases: [api_keys, praw_config, client_id]
+      
+      - name: subreddit_name
+        description: Which subreddit is being extracted
+        weight: 15
+        optional: false
+        aliases: [subreddit, target_subreddit]
+      
+      - name: error_message
+        description: Error message from PRAW or extraction script
+        weight: 30
+        optional: false
+        aliases: [error, api_error, praw_error]
+      
+      - name: extraction_logs
+        description: Logs from the extraction task
+        weight: 20
+        optional: false
+        aliases: [logs, etl_logs, extract_output]
+      
+      - name: rate_limit_info
+        description: Information about API rate limits hit
+        weight: 15
+        optional: true
+        aliases: [rate_limit, quota, api_limit]
+
+  - category: dbt_transformation
+    completeness_threshold: 75
+    required_fields:
+      - name: dbt_version
+        description: Version of dbt being used
+        weight: 10
+        optional: false
+        aliases: [dbt, version]
+      
+      - name: model_name
+        description: Which dbt model is failing
+        weight: 20
+        optional: false
+        aliases: [dbt_model, failing_model, transformation]
+      
+      - name: error_message
+        description: dbt compile or run error message
+        weight: 30
+        optional: false
+        aliases: [error, dbt_error, compilation_error]
+      
+      - name: dbt_logs
+        description: Output from dbt run or dbt compile
+        weight: 25
+        optional: false
+        aliases: [logs, dbt_output, run_logs]
+      
+      - name: sql_query
+        description: The SQL in the failing model (if relevant)
+        weight: 15
+        optional: true
+        aliases: [sql, model_sql, query]
+
+  - category: postgres_database
+    completeness_threshold: 70
+    required_fields:
+      - name: postgres_version
+        description: Postgres version from docker-compose
+        weight: 10
+        optional: false
+        aliases: [postgres, db_version]
+      
+      - name: error_type
+        description: Type of database error (connection, query, permission)
+        weight: 20
+        optional: false
+        aliases: [error_type, issue_type]
+      
+      - name: error_message
+        description: Postgres error message or code
+        weight: 30
+        optional: false
+        aliases: [error, postgres_error, db_error]
+      
+      - name: connection_string
+        description: Connection details (hide password)
+        weight: 15
+        optional: false
+        aliases: [connection, database_url, pg_connection]
+      
+      - name: query_or_command
+        description: SQL query or command that failed
+        weight: 25
+        optional: true
+        aliases: [sql, query, command]

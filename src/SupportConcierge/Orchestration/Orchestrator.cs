@@ -1,0 +1,421 @@
+using SupportConcierge.Agents;
+using SupportConcierge.GitHub;
+using SupportConcierge.Parsing;
+using SupportConcierge.Reporting;
+using SupportConcierge.Scoring;
+using SupportConcierge.SpecPack;
+using System.Text.Json;
+
+namespace SupportConcierge.Orchestration;
+
+public class Orchestrator
+{
+    private const int MaxLoops = 3;
+
+    public async Task ProcessEventAsync(string? eventName, JsonElement eventPayload)
+    {
+        Console.WriteLine($"Processing event: {eventName}");
+
+        // Only process relevant events
+        if (eventName != "issues" && eventName != "issue_comment")
+        {
+            Console.WriteLine("Skipping: Not an issue or comment event");
+            return;
+        }
+
+        // Extract issue and repository info
+        var issue = eventPayload.GetProperty("issue").Deserialize<GitHubIssue>();
+        var repository = eventPayload.GetProperty("repository").Deserialize<GitHubRepository>();
+
+        if (issue == null || repository == null)
+        {
+            Console.WriteLine("ERROR: Could not parse issue or repository from event");
+            return;
+        }
+
+        Console.WriteLine($"Issue #{issue.Number}: {issue.Title}");
+        Console.WriteLine($"Repository: {repository.FullName}");
+
+        // Initialize services
+        var githubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN")!;
+        var botUsername = Environment.GetEnvironmentVariable("SUPPORTBOT_BOT_USERNAME") ?? "github-actions[bot]";
+        
+        var githubApi = new GitHubApi(githubToken);
+        var specPackLoader = new SpecPackLoader();
+        var openAiClient = new OpenAiClient();
+        var stateStore = new StateStore();
+        var parser = new IssueFormParser();
+        var commentComposer = new CommentComposer();
+
+        // Load configuration
+        Console.WriteLine("Loading SpecPack configuration...");
+        var specPack = await specPackLoader.LoadSpecPackAsync();
+
+        // Get all comments
+        var comments = await githubApi.GetIssueCommentsAsync(
+            repository.Owner.Login, repository.Name, issue.Number);
+
+        // Find latest bot state from previous comments
+        BotState? currentState = null;
+        foreach (var comment in comments.OrderByDescending(c => c.CreatedAt))
+        {
+            if (comment.User.Login.Equals(botUsername, StringComparison.OrdinalIgnoreCase))
+            {
+                currentState = stateStore.ExtractState(comment.Body);
+                if (currentState != null)
+                {
+                    Console.WriteLine($"Found existing state: Loop {currentState.LoopCount}, Category: {currentState.Category}");
+                    break;
+                }
+            }
+        }
+
+        // Initialize validators and scorers
+        var validators = new Validators(specPack.Validators);
+        var secretRedactor = new SecretRedactor(specPack.Validators.SecretPatterns);
+        var scorer = new CompletenessScorer(validators);
+
+        // Step 1: Determine category
+        string category;
+        if (currentState != null)
+        {
+            category = currentState.Category;
+            Console.WriteLine($"Using existing category: {category}");
+        }
+        else
+        {
+            category = await DetermineCategoryAsync(issue, specPack, openAiClient, parser);
+            Console.WriteLine($"Determined category: {category}");
+        }
+
+        // Get checklist for this category
+        if (!specPack.Checklists.TryGetValue(category, out var checklist))
+        {
+            Console.WriteLine($"ERROR: No checklist found for category '{category}'");
+            return;
+        }
+
+        // Step 2: Extract fields
+        Console.WriteLine("Extracting fields from issue...");
+        var extractedFields = await ExtractFieldsAsync(
+            issue, comments, checklist, parser, openAiClient, secretRedactor);
+
+        Console.WriteLine($"Extracted {extractedFields.Count} fields");
+
+        // Step 3: Score completeness
+        var scoring = scorer.ScoreCompleteness(extractedFields, checklist);
+        Console.WriteLine($"Completeness score: {scoring.Score}/{scoring.Threshold}");
+        Console.WriteLine($"Missing fields: {string.Join(", ", scoring.MissingFields)}");
+
+        // Initialize or update state
+        if (currentState == null)
+        {
+            currentState = stateStore.CreateInitialState(category);
+        }
+
+        // Step 4: Decide action based on completeness and loop count
+        if (scoring.IsActionable)
+        {
+            // Issue is actionable - create engineer brief and route
+            Console.WriteLine("Issue is actionable. Creating engineer brief...");
+            await FinalizeIssueAsync(
+                issue, repository, extractedFields, scoring, category,
+                specPack, githubApi, openAiClient, commentComposer, 
+                secretRedactor, stateStore, currentState);
+        }
+        else if (currentState.LoopCount >= MaxLoops)
+        {
+            // Max loops reached - escalate
+            Console.WriteLine($"Max loops ({MaxLoops}) reached without becoming actionable. Escalating...");
+            await EscalateIssueAsync(
+                issue, repository, scoring, specPack, 
+                githubApi, commentComposer, stateStore, currentState);
+        }
+        else
+        {
+            // Ask follow-up questions
+            Console.WriteLine("Asking follow-up questions...");
+            await AskFollowUpQuestionsAsync(
+                issue, repository, extractedFields, scoring, category,
+                currentState, githubApi, openAiClient, commentComposer, stateStore);
+        }
+
+        Console.WriteLine("Processing complete.");
+    }
+
+    private async Task<string> DetermineCategoryAsync(
+        GitHubIssue issue,
+        SpecModels.SpecPackConfig specPack,
+        OpenAiClient openAiClient,
+        IssueFormParser parser)
+    {
+        // Try deterministic methods first
+        var issueBody = issue.Body ?? "";
+        var parsedFields = parser.ParseIssueForm(issueBody);
+
+        // Check for explicit issue type field
+        if (parsedFields.TryGetValue("issue_type", out var issueType) || 
+            parsedFields.TryGetValue("type", out issueType))
+        {
+            var normalizedType = issueType.ToLowerInvariant();
+            if (specPack.Categories.Any(c => c.Name.Equals(normalizedType, StringComparison.OrdinalIgnoreCase)))
+            {
+                return normalizedType;
+            }
+        }
+
+        // Try keyword matching
+        var text = $"{issue.Title} {issueBody}".ToLowerInvariant();
+        var categoryScores = new Dictionary<string, int>();
+
+        foreach (var category in specPack.Categories)
+        {
+            var score = category.Keywords.Count(keyword => 
+                text.Contains(keyword.ToLowerInvariant()));
+            categoryScores[category.Name] = score;
+        }
+
+        var bestMatch = categoryScores.OrderByDescending(kvp => kvp.Value).FirstOrDefault();
+        if (bestMatch.Value > 0)
+        {
+            return bestMatch.Key;
+        }
+
+        // Fall back to LLM classification
+        var categoryNames = specPack.Categories.Select(c => c.Name).ToList();
+        var classification = await openAiClient.ClassifyCategoryAsync(
+            issue.Title, issueBody, categoryNames);
+
+        return classification.Category;
+    }
+
+    private async Task<Dictionary<string, string>> ExtractFieldsAsync(
+        GitHubIssue issue,
+        List<GitHubComment> comments,
+        SpecModels.CategoryChecklist checklist,
+        IssueFormParser parser,
+        OpenAiClient openAiClient,
+        SecretRedactor secretRedactor)
+    {
+        var issueBody = issue.Body ?? "";
+        
+        // Redact secrets before processing
+        var (redactedBody, _) = secretRedactor.RedactSecrets(issueBody);
+
+        // Try deterministic parsing first
+        var parsedFields = parser.ParseIssueForm(redactedBody);
+        var kvPairs = parser.ExtractKeyValuePairs(redactedBody);
+        var fields = parser.MergeFields(parsedFields, kvPairs);
+
+        // Collect user comments (non-bot)
+        var botUsername = Environment.GetEnvironmentVariable("SUPPORTBOT_BOT_USERNAME") ?? "github-actions[bot]";
+        var userComments = comments
+            .Where(c => !c.User.Login.Equals(botUsername, StringComparison.OrdinalIgnoreCase))
+            .Select(c => c.Body)
+            .ToList();
+
+        var commentsText = string.Join("\n\n---\n\n", userComments);
+        var (redactedComments, _) = secretRedactor.RedactSecrets(commentsText);
+
+        // Use LLM to extract any missing fields
+        var requiredFieldNames = checklist.RequiredFields.Select(f => f.Name).ToList();
+        var llmFields = await openAiClient.ExtractCasePacketAsync(
+            redactedBody, redactedComments, requiredFieldNames);
+
+        // Merge with preference for LLM-extracted fields (more accurate for complex cases)
+        return parser.MergeFields(fields, llmFields);
+    }
+
+    private async Task AskFollowUpQuestionsAsync(
+        GitHubIssue issue,
+        GitHubRepository repository,
+        Dictionary<string, string> extractedFields,
+        ScoringResult scoring,
+        string category,
+        BotState state,
+        GitHubApi githubApi,
+        OpenAiClient openAiClient,
+        CommentComposer commentComposer,
+        StateStore stateStore)
+    {
+        // Filter out already-asked fields
+        var missingToAsk = scoring.MissingFields
+            .Where(f => !state.AskedFields.Contains(f))
+            .ToList();
+
+        if (missingToAsk.Count == 0)
+        {
+            Console.WriteLine("No new fields to ask about (all have been asked)");
+            return;
+        }
+
+        var issueBody = issue.Body ?? "";
+        var questions = await openAiClient.GenerateFollowUpQuestionsAsync(
+            issueBody, category, missingToAsk, state.AskedFields);
+
+        if (questions.Count == 0)
+        {
+            Console.WriteLine("No questions generated");
+            return;
+        }
+
+        // Update state
+        state.LoopCount++;
+        state.AskedFields.AddRange(questions.Select(q => q.Field));
+        state.CompletenessScore = scoring.Score;
+        state.LastUpdated = DateTime.UtcNow;
+
+        // Compose and post comment
+        var commentBody = commentComposer.ComposeFollowUpComment(questions, state.LoopCount);
+        var commentWithState = stateStore.EmbedState(commentBody, state);
+
+        await githubApi.PostCommentAsync(
+            repository.Owner.Login, repository.Name, issue.Number, commentWithState);
+
+        Console.WriteLine($"Posted follow-up questions (loop {state.LoopCount})");
+    }
+
+    private async Task FinalizeIssueAsync(
+        GitHubIssue issue,
+        GitHubRepository repository,
+        Dictionary<string, string> extractedFields,
+        ScoringResult scoring,
+        string category,
+        SpecModels.SpecPackConfig specPack,
+        GitHubApi githubApi,
+        OpenAiClient openAiClient,
+        CommentComposer commentComposer,
+        SecretRedactor secretRedactor,
+        StateStore stateStore,
+        BotState state)
+    {
+        // Get playbook and repo docs
+        var playbook = specPack.Playbooks.TryGetValue(category, out var pb) ? pb : "";
+        
+        var readmeContent = await githubApi.GetFileContentAsync(
+            repository.Owner.Login, repository.Name, "README.md", repository.DefaultBranch);
+        var troubleshootingContent = await githubApi.GetFileContentAsync(
+            repository.Owner.Login, repository.Name, "TROUBLESHOOTING.md", repository.DefaultBranch);
+        
+        var repoDocs = $"{readmeContent}\n\n{troubleshootingContent}".Trim();
+        if (repoDocs.Length > 3000)
+        {
+            repoDocs = repoDocs.Substring(0, 3000) + "...";
+        }
+
+        // Search for potential duplicates
+        var duplicates = new List<(int, string)>();
+        if (extractedFields.TryGetValue("error_message", out var errorMsg) && !string.IsNullOrEmpty(errorMsg))
+        {
+            // Extract key terms from error message
+            var keywords = errorMsg.Split(' ')
+                .Where(w => w.Length > 4)
+                .Take(3)
+                .ToList();
+            
+            if (keywords.Count > 0)
+            {
+                var searchQuery = string.Join(" ", keywords);
+                var similarIssues = await githubApi.SearchIssuesAsync(
+                    repository.Owner.Login, repository.Name, searchQuery, 3);
+                
+                duplicates = similarIssues
+                    .Where(i => i.Number != issue.Number)
+                    .Select(i => (i.Number, i.Title))
+                    .ToList();
+            }
+        }
+
+        // Collect all comments
+        var comments = await githubApi.GetIssueCommentsAsync(
+            repository.Owner.Login, repository.Name, issue.Number);
+        var botUsername = Environment.GetEnvironmentVariable("SUPPORTBOT_BOT_USERNAME") ?? "github-actions[bot]";
+        var userComments = comments
+            .Where(c => !c.User.Login.Equals(botUsername, StringComparison.OrdinalIgnoreCase))
+            .Select(c => c.Body)
+            .ToList();
+        var commentsText = string.Join("\n\n", userComments);
+
+        // Generate engineer brief
+        var brief = await openAiClient.GenerateEngineerBriefAsync(
+            issue.Body ?? "", commentsText, category, extractedFields,
+            playbook, repoDocs, duplicates);
+
+        // Check for secrets in extracted fields
+        var allFieldsText = string.Join("\n", extractedFields.Values);
+        var (_, secretFindings) = secretRedactor.RedactSecrets(allFieldsText);
+
+        // Compose and post engineer brief
+        var briefComment = commentComposer.ComposeEngineerBrief(
+            brief, scoring, extractedFields, secretFindings);
+
+        // Update state
+        state.IsActionable = true;
+        state.CompletenessScore = scoring.Score;
+        state.LastUpdated = DateTime.UtcNow;
+
+        var briefWithState = stateStore.EmbedState(briefComment, state);
+        await githubApi.PostCommentAsync(
+            repository.Owner.Login, repository.Name, issue.Number, briefWithState);
+
+        // Apply labels and assignees
+        var route = specPack.Routing.Routes.FirstOrDefault(r => 
+            r.Category.Equals(category, StringComparison.OrdinalIgnoreCase));
+        
+        if (route != null)
+        {
+            if (route.Labels.Count > 0)
+            {
+                await githubApi.AddLabelsAsync(
+                    repository.Owner.Login, repository.Name, issue.Number, route.Labels);
+                Console.WriteLine($"Applied labels: {string.Join(", ", route.Labels)}");
+            }
+
+            if (route.Assignees.Count > 0)
+            {
+                // Filter out placeholder usernames
+                var validAssignees = route.Assignees
+                    .Where(a => !a.StartsWith("@"))
+                    .ToList();
+                
+                if (validAssignees.Count > 0)
+                {
+                    await githubApi.AddAssigneesAsync(
+                        repository.Owner.Login, repository.Name, issue.Number, validAssignees);
+                    Console.WriteLine($"Added assignees: {string.Join(", ", validAssignees)}");
+                }
+            }
+        }
+
+        Console.WriteLine("Posted engineer brief and applied routing");
+    }
+
+    private async Task EscalateIssueAsync(
+        GitHubIssue issue,
+        GitHubRepository repository,
+        ScoringResult scoring,
+        SpecModels.SpecPackConfig specPack,
+        GitHubApi githubApi,
+        CommentComposer commentComposer,
+        StateStore stateStore,
+        BotState state)
+    {
+        var escalationComment = commentComposer.ComposeEscalationComment(
+            scoring, specPack.Routing.EscalationMentions);
+
+        // Update state
+        state.LastUpdated = DateTime.UtcNow;
+        state.CompletenessScore = scoring.Score;
+
+        var commentWithState = stateStore.EmbedState(escalationComment, state);
+        await githubApi.PostCommentAsync(
+            repository.Owner.Login, repository.Name, issue.Number, commentWithState);
+
+        // Add escalation label
+        await githubApi.AddLabelsAsync(
+            repository.Owner.Login, repository.Name, issue.Number, 
+            new List<string> { "needs-maintainer-review", "incomplete-info" });
+
+        Console.WriteLine("Posted escalation comment and added labels");
+    }
+}

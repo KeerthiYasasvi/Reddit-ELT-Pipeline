@@ -1,0 +1,37 @@
+{
+  "issue": {
+    "number": 101,
+    "title": "Build fails with missing module error",
+    "body": "### Issue Type\nbuild\n\n### Operating System\nUbuntu 22.04\n\n### Version\n2.5.1\n\n### Build Tool Version\nnpm 9.6.7\n\n### Error Message\nError: Cannot find module 'webpack'\n\n### Build Command\nnpm run build\n\n### Build Log\n```\nnpm run build\n> build\n> webpack --mode production\n\nnode:internal/modules/cjs/loader:1078\n  throw err;\n  ^\n\nError: Cannot find module 'webpack'\nRequire stack:\n- /home/user/project/node_modules/.bin/webpack\n    at Module._resolveFilename (node:internal/modules/cjs/loader:1075:15)\n```\n\n### Steps to Reproduce\n1. Clone the repository\n2. Run npm install\n3. Run npm run build",
+    "user": {
+      "login": "test-user",
+      "type": "User"
+    },
+    "state": "open",
+    "labels": [],
+    "assignees": [],
+    "html_url": "https://github.com/test/repo/issues/101"
+  },
+  "repository": {
+    "name": "repo",
+    "owner": {
+      "login": "test"
+    },
+    "full_name": "test/repo",
+    "default_branch": "main"
+  },
+  "expected": {
+    "category": "build",
+    "should_be_actionable": true,
+    "expected_labels": ["type: build", "needs-investigation"],
+    "should_extract_fields": [
+      "operating_system",
+      "version",
+      "build_tool_version",
+      "error_message",
+      "build_command",
+      "build_log",
+      "steps_to_reproduce"
+    ]
+  }
+}
