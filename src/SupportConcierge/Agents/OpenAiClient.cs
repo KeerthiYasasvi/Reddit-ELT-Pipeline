@@ -1,6 +1,6 @@
-using OpenAI;
-using OpenAI.Chat;
-using System.ClientModel;
+using OpenAI_API;
+using OpenAI_API.Chat;
+using OpenAI_API.Models;
 using System.Text.Json;
 
 namespace SupportConcierge.Agents;
