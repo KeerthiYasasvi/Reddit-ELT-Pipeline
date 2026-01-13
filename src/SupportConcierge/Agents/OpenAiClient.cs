@@ -22,7 +22,7 @@ public class OpenAiClient
         if (string.IsNullOrEmpty(_apiKey))
             throw new InvalidOperationException("OPENAI_API_KEY not set or empty");
         
-        _model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4";
+        _model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4o-2024-08-06";
         
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.Authorization = 
@@ -71,9 +71,15 @@ public class OpenAiClient
         try
         {
             var response = await _httpClient.PostAsync(OpenAiApiUrl, jsonContent);
-            response.EnsureSuccessStatusCode();
-
             var responseContent = await response.Content.ReadAsStringAsync();
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.Error.WriteLine($"OpenAI API Error: {response.StatusCode}");
+                Console.Error.WriteLine($"Response: {responseContent}");
+                response.EnsureSuccessStatusCode();
+            }
+
             var jsonResponse = JsonSerializer.Deserialize<JsonElement>(responseContent);
 
             // Extract the assistant's response content
@@ -93,7 +99,7 @@ public class OpenAiClient
         }
         catch (HttpRequestException ex)
         {
-            Console.Error.WriteLine($"OpenAI API Error: {ex.Message}");
+            Console.Error.WriteLine($"OpenAI API HTTP Error: {ex.Message}");
             throw;
         }
     }
