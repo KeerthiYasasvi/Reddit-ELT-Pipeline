@@ -102,9 +102,10 @@ Generate a comprehensive engineer brief in JSON format with:
 IMPORTANT:
 - Base next_steps ONLY on the provided playbook and documentation
 - Do NOT invent commands, file paths, or procedures not mentioned in the context
-- If duplicate issues are provided, mention them in possible_duplicates
+- If duplicate issues are provided, include them in possible_duplicates as array of {issue_number: int, similarity_reason: string}. If no duplicates, use empty array []
 - Keep evidence snippets short and relevant
 - Be factual and precise
 - Format response as JSON";
+
     }
 }

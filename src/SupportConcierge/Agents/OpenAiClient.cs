@@ -259,10 +259,31 @@ public class OpenAiClient
 
         var content = await CallOpenAiApiAsync(messages, Schemas.EngineerBriefSchema, "engineer_brief");
         
-        return JsonSerializer.Deserialize<EngineerBrief>(content) 
-            ?? new EngineerBrief();
+        try
+        {
+            return JsonSerializer.Deserialize<EngineerBrief>(content) 
+                ?? new EngineerBrief();
+        }
+        catch (JsonException ex)
+        {
+            Console.WriteLine($"Error deserializing engineer brief JSON: {ex.Message}");
+            Console.WriteLine($"Raw response content:\n{content}");
+            
+            // Return default brief with error indication
+            return new EngineerBrief
+            {
+                Summary = "Error processing issue data - please check the response format",
+                Symptoms = new List<string> { "JSON parsing error" },
+                Repro_Steps = new List<string>(),
+                Environment = new Dictionary<string, string>(),
+                Key_Evidence = new List<string> { ex.Message },
+                Next_Steps = new List<string> { "Please review the issue details and resubmit" },
+                Possible_Duplicates = new List<DuplicateReference>()
+            };
+        }
     }
 }
+
 
 /// <summary>
 /// Message model for direct HTTP API calls
