@@ -33,6 +33,24 @@ public class Orchestrator
             return;
         }
 
+        // SCENARIO 1 FIX: For issue_comment events, only process if comment is from issue author
+        if (eventName == "issue_comment")
+        {
+            var comment = eventPayload.GetProperty("comment").Deserialize<GitHubComment>();
+            if (comment == null)
+            {
+                Console.WriteLine("ERROR: Could not parse comment from issue_comment event");
+                return;
+            }
+
+            var commentAuthor = issue.User.Login;
+            if (!comment.User.Login.Equals(commentAuthor, StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine($"Skipping: Comment from {comment.User.Login} (not from issue author {commentAuthor})");
+                return;
+            }
+        }
+
         Console.WriteLine($"Issue #{issue.Number}: {issue.Title}");
         Console.WriteLine($"Repository: {repository.FullName}");
 
