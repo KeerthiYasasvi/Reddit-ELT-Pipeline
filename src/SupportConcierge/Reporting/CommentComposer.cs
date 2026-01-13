@@ -41,8 +41,6 @@ public class CommentComposer
     {
         var sb = new StringBuilder();
         
-        sb.AppendLine("## 📋 Engineer Brief");
-        sb.AppendLine();
         sb.AppendLine($"**Summary:** {brief.Summary}");
         sb.AppendLine();
 
