@@ -33,23 +33,8 @@ public class Orchestrator
             return;
         }
 
-        // SCENARIO 1 FIX: For issue_comment events, only process if comment is from issue author
-        if (eventName == "issue_comment")
-        {
-            var comment = eventPayload.GetProperty("comment").Deserialize<GitHubComment>();
-            if (comment == null)
-            {
-                Console.WriteLine("ERROR: Could not parse comment from issue_comment event");
-                return;
-            }
-
-            var commentAuthor = issue.User.Login;
-            if (!comment.User.Login.Equals(commentAuthor, StringComparison.OrdinalIgnoreCase))
-            {
-                Console.WriteLine($"Skipping: Comment from {comment.User.Login} (not from issue author {commentAuthor})");
-                return;
-            }
-        }
+        // SCENARIO 1 FIX: For issue_comment events, we'll handle command parsing later
+        // (moved to main logic to properly track comment and author info)
 
         Console.WriteLine($"Issue #{issue.Number}: {issue.Title}");
         Console.WriteLine($"Repository: {repository.FullName}");
@@ -88,11 +73,75 @@ public class Orchestrator
             }
         }
 
-        // SCENARIO 1 FIX: Check if issue is already finalized
-        if (currentState != null && currentState.IsFinalized)
+        // SCENARIO 1ii: Extract comment info for command handling (if this is an issue_comment event)
+        GitHubComment? incomingComment = null;
+        string? commentAuthor = null;
+        if (eventName == "issue_comment")
         {
-            Console.WriteLine($"Issue already finalized at {currentState.FinalizedAt}. Skipping processing to prevent duplicate responses.");
-            Console.WriteLine("Note: If this is a new issue from the same author, they should open a new issue.");
+            incomingComment = eventPayload.GetProperty("comment").Deserialize<GitHubComment>();
+            if (incomingComment != null)
+            {
+                commentAuthor = incomingComment.User.Login;
+                Console.WriteLine($"Processing comment from {commentAuthor}");
+            }
+        }
+
+        // SCENARIO 1ii: Check for /stop command (user opt-out) - process regardless of finalization status
+        if (incomingComment != null && commentAuthor != null)
+        {
+            var (command, args) = ParseCommand(incomingComment.Body);
+            if (command == "stop")
+            {
+                Console.WriteLine($"User {commentAuthor} used /stop command. Adding to OptedOutUsers.");
+                if (currentState == null)
+                {
+                    currentState = stateStore.CreateInitialState("unknown", issue.User.Login);
+                }
+                if (!currentState.OptedOutUsers.Contains(commentAuthor, StringComparer.OrdinalIgnoreCase))
+                {
+                    currentState.OptedOutUsers.Add(commentAuthor);
+                }
+                // Post acknowledgment
+                var stopAck = $"Got it! I won't ask you any more questions on this issue.";
+                var stopWithState = stateStore.EmbedState(stopAck, currentState);
+                await githubApi.PostCommentAsync(
+                    repository.Owner.Login, repository.Name, issue.Number, stopWithState);
+                Console.WriteLine("Posted /stop acknowledgment.");
+                return;
+            }
+        }
+
+        // SCENARIO 1 FIX: Check if issue is already finalized
+        // But allow if comment author is using /diagnose or is the original author
+        bool isOriginalAuthor = commentAuthor?.Equals(issue.User.Login, StringComparison.OrdinalIgnoreCase) ?? false;
+        bool isDiagnoseCommand = false;
+        
+        if (incomingComment != null && currentState != null)
+        {
+            var (command, args) = ParseCommand(incomingComment.Body);
+            isDiagnoseCommand = (command == "diagnose");
+        }
+
+        if (currentState != null && currentState.IsFinalized && !isDiagnoseCommand && !isOriginalAuthor)
+        {
+            Console.WriteLine($"Issue already finalized and no /diagnose command. Skipping non-author processing.");
+            return;
+        }
+
+        // SCENARIO 1ii: Check if commenter is opted-out
+        if (incomingComment != null && commentAuthor != null && currentState != null)
+        {
+            if (IsUserOptedOut(commentAuthor, currentState))
+            {
+                Console.WriteLine($"User {commentAuthor} is opted-out. Skipping processing.");
+                return;
+            }
+        }
+
+        // SCENARIO 1 FIX: Only process comments from the issue author (unless /diagnose or new issue)
+        if (eventName == "issue_comment" && commentAuthor != null && !isOriginalAuthor && !isDiagnoseCommand)
+        {
+            Console.WriteLine($"Skipping: Comment from {commentAuthor} (not from issue author or using /diagnose)");
             return;
         }
 
@@ -147,6 +196,29 @@ public class Orchestrator
         if (currentState == null)
         {
             currentState = stateStore.CreateInitialState(category, issueAuthor);
+        }
+
+        // SCENARIO 1ii: Handle /diagnose command for sub-issues
+        if (isDiagnoseCommand && incomingComment != null && commentAuthor != null)
+        {
+            Console.WriteLine($"Processing /diagnose command from {commentAuthor}");
+            
+            // Add or update sub-issue user tracking
+            var userLower = commentAuthor.ToLowerInvariant();
+            if (!currentState.SubIssueUsers.ContainsKey(userLower))
+            {
+                currentState.SubIssueUsers[userLower] = 0;  // Start at round 0
+                Console.WriteLine($"Added {commentAuthor} to SubIssueUsers tracking");
+            }
+            
+            currentState.CurrentSubIssueUser = commentAuthor;
+            
+            // Check if this user has already reached max rounds
+            if (GetUserRoundCount(commentAuthor, currentState) >= MaxLoops)
+            {
+                Console.WriteLine($"User {commentAuthor} has already reached max {MaxLoops} rounds for sub-issue. Skipping.");
+                return;
+            }
         }
 
         // Step 4: Decide action based on completeness and loop count
@@ -295,20 +367,33 @@ public class Orchestrator
             return;
         }
 
-        // Update state
-        state.LoopCount++;
+        // SCENARIO 1ii: Update state - handle sub-issue users separately
+        if (state.CurrentSubIssueUser != null)
+        {
+            // Track round count per sub-issue user
+            var userLower = state.CurrentSubIssueUser.ToLowerInvariant();
+            state.SubIssueUsers[userLower]++;
+            Console.WriteLine($"Incremented round count for {state.CurrentSubIssueUser}: {state.SubIssueUsers[userLower]}");
+        }
+        else
+        {
+            // Original author - use global loop count
+            state.LoopCount++;
+        }
+
         state.AskedFields.AddRange(questions.Select(q => q.Field));
         state.CompletenessScore = scoring.Score;
         state.LastUpdated = DateTime.UtcNow;
 
         // Compose and post comment
-        var commentBody = commentComposer.ComposeFollowUpComment(questions, state.LoopCount);
+        var loopDisplay = state.CurrentSubIssueUser != null ? state.SubIssueUsers[state.CurrentSubIssueUser.ToLowerInvariant()] : state.LoopCount;
+        var commentBody = commentComposer.ComposeFollowUpComment(questions, loopDisplay);
         var commentWithState = stateStore.EmbedState(commentBody, state);
 
         await githubApi.PostCommentAsync(
             repository.Owner.Login, repository.Name, issue.Number, commentWithState);
 
-        Console.WriteLine($"Posted follow-up questions (loop {state.LoopCount})");
+        Console.WriteLine($"Posted follow-up questions (round {loopDisplay})");
     }
 
     private async Task FinalizeIssueAsync(
@@ -457,5 +542,62 @@ public class Orchestrator
             new List<string> { "needs-maintainer-review", "incomplete-info" });
 
         Console.WriteLine("Posted escalation comment and added labels");
+    }
+
+    /// <summary>
+    /// Scenario 1ii: Parse commands from comment text
+    /// </summary>
+    private (string? command, string args) ParseCommand(string commentBody)
+    {
+        var trimmed = commentBody.Trim();
+        
+        // Check for /diagnose command
+        if (trimmed.StartsWith("/diagnose", StringComparison.OrdinalIgnoreCase))
+        {
+            var args = trimmed.Length > 9 ? trimmed.Substring(9).Trim() : "";
+            return ("diagnose", args);
+        }
+        
+        // Check for /stop command (also support /no-questions)
+        if (trimmed.StartsWith("/stop", StringComparison.OrdinalIgnoreCase) || 
+            trimmed.StartsWith("/no-questions", StringComparison.OrdinalIgnoreCase))
+        {
+            return ("stop", "");
+        }
+        
+        return (null, "");
+    }
+
+    /// <summary>
+    /// Scenario 1ii: Check if a user is opted out
+    /// </summary>
+    private bool IsUserOptedOut(string username, BotState state)
+    {
+        return state.OptedOutUsers.Contains(username, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Scenario 1ii: Get round count for a sub-issue user (or 0 if not tracked)
+    /// </summary>
+    private int GetUserRoundCount(string username, BotState state)
+    {
+        if (state.SubIssueUsers.TryGetValue(username.ToLowerInvariant(), out var count))
+        {
+            return count;
+        }
+        return 0;
+    }
+
+    /// <summary>
+    /// Scenario 1ii: Check if original author has reached max rounds
+    /// </summary>
+    private bool HasMaxRoundsBeenReached(BotState state, bool isSubIssueUser)
+    {
+        const int MaxRounds = 3;
+        if (isSubIssueUser && state.CurrentSubIssueUser != null)
+        {
+            return GetUserRoundCount(state.CurrentSubIssueUser, state) >= MaxRounds;
+        }
+        return state.LoopCount >= MaxRounds;
     }
 }

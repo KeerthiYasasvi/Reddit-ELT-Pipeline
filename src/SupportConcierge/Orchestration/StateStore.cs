@@ -99,4 +99,9 @@ public class BotState
     public string IssueAuthor { get; set; } = "";
     public bool IsFinalized { get; set; }
     public DateTime? FinalizedAt { get; set; }
+    
+    // Scenario 1ii: Multi-user support with commands
+    public List<string> OptedOutUsers { get; set; } = new();  // Users who used /stop
+    public Dictionary<string, int> SubIssueUsers { get; set; } = new();  // User -> Round count mapping for /diagnose users
+    public string? CurrentSubIssueUser { get; set; }  // Track which sub-issue user is currently being processed
 }
