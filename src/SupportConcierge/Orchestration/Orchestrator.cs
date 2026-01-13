@@ -128,13 +128,22 @@ public class Orchestrator
             return;
         }
 
-        // SCENARIO 1ii: Check if commenter is opted-out
+        // SCENARIO 1iii: Check if commenter is opted-out, but allow re-engagement via /diagnose
         if (incomingComment != null && commentAuthor != null && currentState != null)
         {
             if (IsUserOptedOut(commentAuthor, currentState))
             {
-                Console.WriteLine($"User {commentAuthor} is opted-out. Skipping processing.");
-                return;
+                if (isDiagnoseCommand)
+                {
+                    // Re-engage: Remove user from opted-out list
+                    currentState.OptedOutUsers.Remove(commentAuthor.ToLowerInvariant());
+                    Console.WriteLine($"User {commentAuthor} re-engaged via /diagnose. Removed from opted-out list.");
+                }
+                else
+                {
+                    Console.WriteLine($"User {commentAuthor} is opted-out and not using /diagnose. Skipping processing.");
+                    return;
+                }
             }
         }
 
