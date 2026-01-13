@@ -52,13 +52,7 @@ public class OpenAiClient
             temperature = temperature,
             response_format = new
             {
-                type = "json_schema",
-                json_schema = new
-                {
-                    name = schemaName,
-                    schema = JsonSerializer.Deserialize<JsonElement>(schemaJson),
-                    strict = true
-                }
+                type = "json_object"
             }
         };
 
