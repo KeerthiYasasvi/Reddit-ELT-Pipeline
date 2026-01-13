@@ -259,6 +259,8 @@ public class OpenAiClient
 
         var content = await CallOpenAiApiAsync(messages, Schemas.EngineerBriefSchema, "engineer_brief");
         
+        Console.WriteLine($"Engineer Brief raw response:\n{content}\n");
+        
         try
         {
             return JsonSerializer.Deserialize<EngineerBrief>(content) 
@@ -268,6 +270,59 @@ public class OpenAiClient
         {
             Console.WriteLine($"Error deserializing engineer brief JSON: {ex.Message}");
             Console.WriteLine($"Raw response content:\n{content}");
+            
+            // Try to parse with lenient settings - ignore possible_duplicates errors
+            try
+            {
+                // Remove the problematic field and try again
+                var parsed = JsonSerializer.Deserialize<JsonElement>(content);
+                if (parsed.ValueKind == JsonValueKind.Object)
+                {
+                    // Create a clean brief from what we can parse
+                    var brief = new EngineerBrief();
+                    
+                    if (parsed.TryGetProperty("summary", out var summary))
+                        brief.Summary = summary.GetString() ?? "";
+                    
+                    if (parsed.TryGetProperty("symptoms", out var symptoms) && symptoms.ValueKind == JsonValueKind.Array)
+                        brief.Symptoms = symptoms.EnumerateArray()
+                            .Select(s => s.GetString() ?? "")
+                            .Where(s => !string.IsNullOrEmpty(s))
+                            .ToList();
+                    
+                    if (parsed.TryGetProperty("repro_steps", out var repro) && repro.ValueKind == JsonValueKind.Array)
+                        brief.Repro_Steps = repro.EnumerateArray()
+                            .Select(s => s.GetString() ?? "")
+                            .Where(s => !string.IsNullOrEmpty(s))
+                            .ToList();
+                    
+                    if (parsed.TryGetProperty("environment", out var env) && env.ValueKind == JsonValueKind.Object)
+                    {
+                        brief.Environment = env.EnumerateObject()
+                            .ToDictionary(p => p.Name, p => p.Value.GetString() ?? "");
+                    }
+                    
+                    if (parsed.TryGetProperty("key_evidence", out var evidence) && evidence.ValueKind == JsonValueKind.Array)
+                        brief.Key_Evidence = evidence.EnumerateArray()
+                            .Select(s => s.GetString() ?? "")
+                            .Where(s => !string.IsNullOrEmpty(s))
+                            .ToList();
+                    
+                    if (parsed.TryGetProperty("next_steps", out var steps) && steps.ValueKind == JsonValueKind.Array)
+                        brief.Next_Steps = steps.EnumerateArray()
+                            .Select(s => s.GetString() ?? "")
+                            .Where(s => !string.IsNullOrEmpty(s))
+                            .ToList();
+                    
+                    // Skip possible_duplicates - it's optional
+                    
+                    return brief;
+                }
+            }
+            catch (Exception innerEx)
+            {
+                Console.WriteLine($"Error in lenient parsing: {innerEx.Message}");
+            }
             
             // Return default brief with error indication
             return new EngineerBrief
