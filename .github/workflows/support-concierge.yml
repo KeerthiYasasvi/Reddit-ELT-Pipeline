@@ -32,7 +32,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4o-2024-08-06' }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4' }}
           SUPPORTBOT_SPEC_DIR: ${{ vars.SUPPORTBOT_SPEC_DIR || '.supportbot' }}
           SUPPORTBOT_BOT_USERNAME: 'github-actions[bot]'
         run: dotnet run --project src/SupportConcierge/SupportConcierge.csproj --configuration Release --no-build
