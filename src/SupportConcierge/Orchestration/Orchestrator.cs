@@ -70,6 +70,24 @@ public class Orchestrator
             }
         }
 
+        // SCENARIO 1 FIX: Check if issue is already finalized
+        if (currentState != null && currentState.IsFinalized)
+        {
+            Console.WriteLine($"Issue already finalized at {currentState.FinalizedAt}. Skipping processing to prevent duplicate responses.");
+            Console.WriteLine("Note: If this is a new issue from the same author, they should open a new issue.");
+            return;
+        }
+
+        // SCENARIO 1 FIX: Only process comments from the issue author
+        // Filter comments to only include issue author's responses (for field extraction)
+        var issueAuthor = issue.User.Login;
+        var authorComments = comments
+            .Where(c => c.User.Login.Equals(issueAuthor, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        
+        Console.WriteLine($"Issue author: {issueAuthor}");
+        Console.WriteLine($"Total comments: {comments.Count}, Author comments: {authorComments.Count}");
+
         // Initialize validators and scorers
         var validators = new Validators(specPack.Validators);
         var secretRedactor = new SecretRedactor(specPack.Validators.SecretPatterns);
@@ -95,10 +113,10 @@ public class Orchestrator
             return;
         }
 
-        // Step 2: Extract fields
+        // Step 2: Extract fields (using only author comments + original issue)
         Console.WriteLine("Extracting fields from issue...");
         var extractedFields = await ExtractFieldsAsync(
-            issue, comments, checklist, parser, openAiClient, secretRedactor);
+            issue, authorComments, checklist, parser, openAiClient, secretRedactor);
 
         Console.WriteLine($"Extracted {extractedFields.Count} fields");
 
@@ -110,7 +128,7 @@ public class Orchestrator
         // Initialize or update state
         if (currentState == null)
         {
-            currentState = stateStore.CreateInitialState(category);
+            currentState = stateStore.CreateInitialState(category, issueAuthor);
         }
 
         // Step 4: Decide action based on completeness and loop count
@@ -349,10 +367,12 @@ public class Orchestrator
         var briefComment = commentComposer.ComposeEngineerBrief(
             brief, scoring, extractedFields, secretFindings);
 
-        // Update state
+        // SCENARIO 1 FIX: Mark state as finalized to prevent reprocessing
         state.IsActionable = true;
         state.CompletenessScore = scoring.Score;
         state.LastUpdated = DateTime.UtcNow;
+        state.IsFinalized = true;
+        state.FinalizedAt = DateTime.UtcNow;
 
         var briefWithState = stateStore.EmbedState(briefComment, state);
         await githubApi.PostCommentAsync(
@@ -403,9 +423,11 @@ public class Orchestrator
         var escalationComment = commentComposer.ComposeEscalationComment(
             scoring, specPack.Routing.EscalationMentions);
 
-        // Update state
+        // SCENARIO 1 FIX: Mark state as finalized to prevent reprocessing
         state.LastUpdated = DateTime.UtcNow;
         state.CompletenessScore = scoring.Score;
+        state.IsFinalized = true;
+        state.FinalizedAt = DateTime.UtcNow;
 
         var commentWithState = stateStore.EmbedState(escalationComment, state);
         await githubApi.PostCommentAsync(

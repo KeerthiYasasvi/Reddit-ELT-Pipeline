@@ -73,14 +73,15 @@ public class StateStore
     /// <summary>
     /// Create initial state for a new issue.
     /// </summary>
-    public BotState CreateInitialState(string category)
+    public BotState CreateInitialState(string category, string issueAuthor)
     {
         return new BotState
         {
             Category = category,
             LoopCount = 0,
             AskedFields = new List<string>(),
-            LastUpdated = DateTime.UtcNow
+            LastUpdated = DateTime.UtcNow,
+            IssueAuthor = issueAuthor
         };
     }
 }
@@ -93,4 +94,9 @@ public class BotState
     public DateTime LastUpdated { get; set; }
     public bool IsActionable { get; set; }
     public int CompletenessScore { get; set; }
+    
+    // Scenario 1 fixes: Track issue author and finalization status
+    public string IssueAuthor { get; set; } = "";
+    public bool IsFinalized { get; set; }
+    public DateTime? FinalizedAt { get; set; }
 }
