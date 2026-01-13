@@ -11,9 +11,18 @@ public class CommentComposer
     /// </summary>
     public string ComposeFollowUpComment(
         List<FollowUpQuestion> questions,
-        int loopCount)
+        int loopCount,
+        string? username = null)
     {
         var sb = new StringBuilder();
+        
+        // Scenario 1ii: @mention the user if provided
+        if (!string.IsNullOrEmpty(username))
+        {
+            sb.AppendLine($"@{username}");
+            sb.AppendLine();
+        }
+        
         sb.AppendLine("👋 Hi! I need a bit more information to help route this issue effectively.");
         sb.AppendLine();
 

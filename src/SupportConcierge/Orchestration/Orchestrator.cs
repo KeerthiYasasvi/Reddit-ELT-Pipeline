@@ -138,22 +138,40 @@ public class Orchestrator
             }
         }
 
-        // SCENARIO 1 FIX: Only process comments from the issue author (unless /diagnose or new issue)
-        if (eventName == "issue_comment" && commentAuthor != null && !isOriginalAuthor && !isDiagnoseCommand)
+        // SCENARIO 1ii: Check if commenter is being tracked as sub-issue user
+        bool isTrackedSubIssueUser = false;
+        if (commentAuthor != null && currentState != null)
         {
-            Console.WriteLine($"Skipping: Comment from {commentAuthor} (not from issue author or using /diagnose)");
+            isTrackedSubIssueUser = currentState.SubIssueUsers.ContainsKey(commentAuthor.ToLowerInvariant());
+        }
+
+        // SCENARIO 1 FIX: Only process comments from the issue author (unless /diagnose, already tracked, or new issue)
+        if (eventName == "issue_comment" && commentAuthor != null && !isOriginalAuthor && !isDiagnoseCommand && !isTrackedSubIssueUser)
+        {
+            Console.WriteLine($"Skipping: Comment from {commentAuthor} (not from issue author, not using /diagnose, and not tracked sub-issue user)");
             return;
+        }
+
+        // SCENARIO 1ii: If this is a tracked sub-issue user, set them as current
+        if (isTrackedSubIssueUser && currentState != null && commentAuthor != null)
+        {
+            currentState.CurrentSubIssueUser = commentAuthor;
+            Console.WriteLine($"Processing tracked sub-issue user: {commentAuthor}");
         }
 
         // SCENARIO 1 FIX: Only process comments from the issue author
         // Filter comments to only include issue author's responses (for field extraction)
         var issueAuthor = issue.User.Login;
-        var authorComments = comments
-            .Where(c => c.User.Login.Equals(issueAuthor, StringComparison.OrdinalIgnoreCase))
+        
+        // SCENARIO 1ii: If processing a sub-issue user, use their comments instead
+        var targetUser = currentState?.CurrentSubIssueUser ?? issueAuthor;
+        var targetComments = comments
+            .Where(c => c.User.Login.Equals(targetUser, StringComparison.OrdinalIgnoreCase))
             .ToList();
         
         Console.WriteLine($"Issue author: {issueAuthor}");
-        Console.WriteLine($"Total comments: {comments.Count}, Author comments: {authorComments.Count}");
+        Console.WriteLine($"Target user: {targetUser}");
+        Console.WriteLine($"Total comments: {comments.Count}, Target user comments: {targetComments.Count}");
 
         // Initialize validators and scorers
         var validators = new Validators(specPack.Validators);
@@ -180,10 +198,10 @@ public class Orchestrator
             return;
         }
 
-        // Step 2: Extract fields (using only author comments + original issue)
+        // Step 2: Extract fields (using target user's comments + original issue)
         Console.WriteLine("Extracting fields from issue...");
         var extractedFields = await ExtractFieldsAsync(
-            issue, authorComments, checklist, parser, openAiClient, secretRedactor);
+            issue, targetComments, checklist, parser, openAiClient, secretRedactor);
 
         Console.WriteLine($"Extracted {extractedFields.Count} fields");
 
@@ -231,10 +249,11 @@ public class Orchestrator
                 specPack, githubApi, openAiClient, commentComposer, 
                 secretRedactor, stateStore, currentState);
         }
-        else if (currentState.LoopCount >= MaxLoops)
+        else if (currentState.LoopCount >= MaxLoops || (currentState.CurrentSubIssueUser != null && GetUserRoundCount(currentState.CurrentSubIssueUser, currentState) >= MaxLoops))
         {
             // Max loops reached - escalate
-            Console.WriteLine($"Max loops ({MaxLoops}) reached without becoming actionable. Escalating...");
+            var targetUserForEscalation = currentState.CurrentSubIssueUser ?? issue.User.Login;
+            Console.WriteLine($"Max loops ({MaxLoops}) reached for {targetUserForEscalation} without becoming actionable. Escalating...");
             await EscalateIssueAsync(
                 issue, repository, scoring, specPack, 
                 githubApi, commentComposer, stateStore, currentState);
@@ -385,15 +404,18 @@ public class Orchestrator
         state.CompletenessScore = scoring.Score;
         state.LastUpdated = DateTime.UtcNow;
 
+        // SCENARIO 1ii: Determine who to @mention in the comment
+        var targetUsername = state.CurrentSubIssueUser ?? issue.User.Login;
+
         // Compose and post comment
         var loopDisplay = state.CurrentSubIssueUser != null ? state.SubIssueUsers[state.CurrentSubIssueUser.ToLowerInvariant()] : state.LoopCount;
-        var commentBody = commentComposer.ComposeFollowUpComment(questions, loopDisplay);
+        var commentBody = commentComposer.ComposeFollowUpComment(questions, loopDisplay, targetUsername);
         var commentWithState = stateStore.EmbedState(commentBody, state);
 
         await githubApi.PostCommentAsync(
             repository.Owner.Login, repository.Name, issue.Number, commentWithState);
 
-        Console.WriteLine($"Posted follow-up questions (round {loopDisplay})");
+        Console.WriteLine($"Posted follow-up questions (round {loopDisplay}) to @{targetUsername}");
     }
 
     private async Task FinalizeIssueAsync(
