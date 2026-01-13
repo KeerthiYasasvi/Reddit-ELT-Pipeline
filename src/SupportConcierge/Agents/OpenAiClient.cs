@@ -7,18 +7,29 @@ namespace SupportConcierge.Agents;
 
 public class OpenAiClient
 {
-    private readonly ChatClient _client;
+    private readonly OpenAIClient _openAiClient;
     private readonly string _model;
+    private ChatClient _chatClient;
 
     public OpenAiClient()
     {
         var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") 
             ?? throw new InvalidOperationException("OPENAI_API_KEY not set");
         
-        _model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4o-2024-08-06";
+        _model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4";
         
-        var openAiClient = new OpenAIClient(apiKey);
-        _client = openAiClient.GetChatClient(_model);
+        _openAiClient = new OpenAIClient(apiKey);
+        _chatClient = _openAiClient.GetChatClient(_model);
+
+        Console.WriteLine($"Using OpenAI model: {_model}");
+    }
+
+    /// <summary>
+    /// Get a ChatClient for the configured model.
+    /// </summary>
+    private ChatClient GetChatClientForModel()
+    {
+        return _chatClient;
     }
 
     /// <summary>
@@ -32,14 +43,54 @@ public class OpenAiClient
         var categoriesText = string.Join("\n", categoryNames.Select(c => $"- {c}"));
         var prompt = Prompts.CategoryClassification(issueTitle, issueBody, categoriesText);
 
-        var options = new ChatCompletionOptions
+        // Build a schema that matches the repository's configured categories.
+        // If no categories are provided, fall back to a non-enum string to avoid schema conflicts.
+        string schemaJson;
+        if (categoryNames != null && categoryNames.Count > 0)
         {
-            ResponseFormat = ChatResponseFormat.CreateJsonSchemaFormat(
+            var enumValues = string.Join(", ", categoryNames.Select(c => $"\"{c}\""));
+            schemaJson = "{\n" +
+                "  \"type\": \"object\",\n" +
+                "  \"properties\": {\n" +
+                "    \"category\": {\n" +
+                "      \"type\": \"string\",\n" +
+                "      \"enum\": [" + enumValues + "]\n" +
+                "    },\n" +
+                "    \"confidence\": {\n" +
+                "      \"type\": \"number\",\n" +
+                "      \"minimum\": 0,\n" +
+                "      \"maximum\": 1\n" +
+                "    },\n" +
+                "    \"reasoning\": {\n" +
+                "      \"type\": \"string\"\n" +
+                "    }\n" +
+                "  },\n" +
+                "  \"required\": [\"category\", \"confidence\", \"reasoning\"],\n" +
+                "  \"additionalProperties\": false\n" +
+            "}";
+        }
+        else
+        {
+            schemaJson = "{\n" +
+                "  \"type\": \"object\",\n" +
+                "  \"properties\": {\n" +
+                "    \"category\": { \"type\": \"string\" },\n" +
+                "    \"confidence\": { \"type\": \"number\", \"minimum\": 0, \"maximum\": 1 },\n" +
+                "    \"reasoning\": { \"type\": \"string\" }\n" +
+                "  },\n" +
+                "  \"required\": [\"category\", \"confidence\", \"reasoning\"],\n" +
+                "  \"additionalProperties\": false\n" +
+            "}";
+        }
+
+            var options = new ChatCompletionOptions
+            {
+                ResponseFormat = ChatResponseFormat.CreateJsonSchemaFormat(
                 "category_classification",
-                BinaryData.FromString(Schemas.CategoryClassificationSchema),
+                BinaryData.FromString(schemaJson),
                 jsonSchemaIsStrict: true
-            )
-        };
+                )
+            };
 
         var messages = new List<ChatMessage>
         {
@@ -47,11 +98,20 @@ public class OpenAiClient
             new UserChatMessage(prompt)
         };
 
-        var response = await _client.CompleteChatAsync(messages, options);
+        var chatClient = GetChatClientForModel();
+        var response = await chatClient.CompleteChatAsync(messages, options);
         var content = response.Value.Content[0].Text;
         
-        return JsonSerializer.Deserialize<CategoryClassificationResult>(content) 
-            ?? new CategoryClassificationResult { Category = categoryNames[0], Confidence = 0.5 };
+        var result = JsonSerializer.Deserialize<CategoryClassificationResult>(content);
+
+        // Fallback: choose first configured category (if available) to keep flow moving
+        if (result == null || string.IsNullOrWhiteSpace(result.Category))
+        {
+            var fallbackCategory = (categoryNames != null && categoryNames.Count > 0) ? categoryNames[0] : "bug";
+            return new CategoryClassificationResult { Category = fallbackCategory, Confidence = 0.5 };
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -80,7 +140,8 @@ public class OpenAiClient
             new UserChatMessage(prompt)
         };
 
-        var response = await _client.CompleteChatAsync(messages, options);
+        var chatClient = GetChatClientForModel();
+        var response = await chatClient.CompleteChatAsync(messages, options);
         var content = response.Value.Content[0].Text;
         
         var extracted = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(content) 
@@ -130,7 +191,8 @@ public class OpenAiClient
             new UserChatMessage(prompt)
         };
 
-        var response = await _client.CompleteChatAsync(messages, options);
+        var chatClient = GetChatClientForModel();
+        var response = await chatClient.CompleteChatAsync(messages, options);
         var content = response.Value.Content[0].Text;
         
         var result = JsonSerializer.Deserialize<FollowUpQuestionsResponse>(content);
@@ -171,7 +233,8 @@ public class OpenAiClient
             new UserChatMessage(prompt)
         };
 
-        var response = await _client.CompleteChatAsync(messages, options);
+        var chatClient = GetChatClientForModel();
+        var response = await chatClient.CompleteChatAsync(messages, options);
         var content = response.Value.Content[0].Text;
         
         return JsonSerializer.Deserialize<EngineerBrief>(content) 

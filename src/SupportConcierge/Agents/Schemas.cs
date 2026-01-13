@@ -10,8 +10,7 @@ public static class Schemas
   ""type"": ""object"",
   ""properties"": {
     ""category"": {
-      ""type"": ""string"",
-      ""enum"": [""setup"", ""build"", ""runtime"", ""bug"", ""docs""]
+      ""type"": ""string""
     },
     ""confidence"": {
       ""type"": ""number"",
