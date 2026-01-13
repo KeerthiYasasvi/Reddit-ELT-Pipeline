@@ -165,14 +165,18 @@ public static class Schemas
         ""type"": ""object"",
         ""properties"": {
           ""issue_number"": {
-            ""type"": ""integer""
+            ""type"": ""integer"",
+            ""minimum"": 1
           },
           ""similarity_reason"": {
-            ""type"": ""string""
+            ""type"": ""string"",
+            ""minLength"": 1
           }
         },
-        ""required"": [""issue_number"", ""similarity_reason""]
-      }
+        ""required"": [""issue_number"", ""similarity_reason""],
+        ""additionalProperties"": false
+      },
+      ""maxItems"": 5
     }
   },
   ""required"": [""summary"", ""symptoms"", ""environment"", ""key_evidence"", ""next_steps""],
