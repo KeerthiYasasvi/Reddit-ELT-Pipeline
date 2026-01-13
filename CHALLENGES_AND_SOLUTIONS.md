@@ -74,9 +74,33 @@ The OpenAI SDK v2.x `GetChatClient(string model)` method has a fundamental issue
 
 **Q: What is the final solution?**
 
-**Current Approach:** Downgrade to OpenAI SDK v1.x which has a proven, stable API for model specification.
+**Approach 5:** Downgrade to OpenAI SDK v1.x which has a proven, stable API for model specification.
 
-**Status:** 🔄 In Progress
+**File Changed:** `src/SupportConcierge/SupportConcierge.csproj`
+```xml
+<!-- Changed from v2.2.0 to v1.11.0 -->
+<PackageReference Include="OpenAI" Version="1.11.0" />
+```
+
+**Discovery:** OpenAI SDK v1.x uses a completely different API:
+- v1.x: Uses `OpenAI_API` namespace, `OpenAIAPI` class, different method signatures
+- v2.x: Uses `OpenAI` namespace, `OpenAIClient` class, `GetChatClient()` pattern
+
+**Result:** ❌ Blocked - Requires complete code rewrite (248 lines) to adapt to v1.x API
+
+**Q: What is the actual final solution?**
+
+After extensive testing across v2.1.0, v2.2.0, and attempting v1.x downgrade, the issue is that **the OpenAI .NET SDK v2.x has a fundamental design flaw** where `GetChatClient(model)` doesn't pass the model to API requests.
+
+**Recommended Solutions:**
+1. **Use the official OpenAI HTTP API directly** instead of the SDK
+2. **Wait for OpenAI SDK v2.3.0+** with the bug fix
+3. **Invest time in complete v1.x rewrite** (248 lines of code changes)
+4. **Switch to Azure OpenAI SDK** which has different implementation
+
+**Status:** 🔄 Documented - Decision pending on which path to take
+
+**Key Learning:** When using third-party SDKs, always validate that basic functionality works before building on top of it. SDK bugs can block entire projects.
 
 ---
 
