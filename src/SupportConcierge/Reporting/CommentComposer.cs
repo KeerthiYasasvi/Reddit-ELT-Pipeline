@@ -26,6 +26,12 @@ public class CommentComposer
 
         sb.AppendLine("---");
         sb.AppendLine($"_This is follow-up round {loopCount} of 3. Please provide as much detail as possible._");
+        sb.AppendLine();
+        
+        // Scenario 1ii: Add command instructions
+        sb.AppendLine("### 📝 Quick Commands");
+        sb.AppendLine("- **`/stop`** - Stop asking me questions on this issue (opt-out)");
+        sb.AppendLine("- **`/diagnose`** - Activate the bot for your specific sub-issue or different problem (for other users in this thread)");
 
         return sb.ToString();
     }
