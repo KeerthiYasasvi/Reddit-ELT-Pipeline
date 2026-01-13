@@ -100,6 +100,7 @@ Generate a comprehensive engineer brief in JSON format with:
 6. Suggested next steps (grounded in the playbook and repo docs - do NOT suggest steps that contradict repo documentation)
 
 IMPORTANT:
+- SCENARIO 1ii FIX: If the follow-ups contain both 'ORIGINAL ISSUE CONTEXT' and 'SUB-ISSUE' sections, use ONLY the SUB-ISSUE section for extracting key evidence, environment details, error information, and symptoms. The original issue context is provided for reference only but should NOT be included in the brief.
 - Base next_steps ONLY on the provided playbook and documentation
 - Do NOT invent commands, file paths, or procedures not mentioned in the context
 - If duplicate issues are provided, include them in possible_duplicates as array of {{issue_number: int, similarity_reason: string}}. Otherwise, omit the possible_duplicates field entirely (do NOT use null or empty array)

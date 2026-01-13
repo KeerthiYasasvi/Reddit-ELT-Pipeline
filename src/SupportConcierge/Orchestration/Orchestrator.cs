@@ -471,17 +471,47 @@ public class Orchestrator
             }
         }
 
-        // SCENARIO 1ii FIX: Collect comments from target user only (not all users)
+        // SCENARIO 1ii FIX: Collect comments from target user only and label for LLM context
         var comments = await githubApi.GetIssueCommentsAsync(
             repository.Owner.Login, repository.Name, issue.Number);
         var botUsername = Environment.GetEnvironmentVariable("SUPPORTBOT_BOT_USERNAME") ?? "github-actions[bot]";
         var userComments = comments
             .Where(c => !c.User.Login.Equals(botUsername, StringComparison.OrdinalIgnoreCase) &&
                         c.User.Login.Equals(targetUsername, StringComparison.OrdinalIgnoreCase))
-            .Select(c => c.Body)
             .ToList();
-        var commentsText = string.Join("\n\n", userComments);
-        Console.WriteLine($"Using comments from target user '{targetUsername}' for engineer brief ({userComments.Count} comments)");
+
+        string commentsText;
+
+        // If this is a sub-issue, separate original vs sub-issue comments
+        if (!string.IsNullOrEmpty(state.CurrentSubIssueUser) && 
+            state.CurrentSubIssueUser.Equals(targetUsername, StringComparison.OrdinalIgnoreCase))
+        {
+            // Find the /diagnose command comment
+            int diagnoseIndex = userComments.FindIndex(c => c.Body.Contains("/diagnose"));
+            
+            if (diagnoseIndex >= 0)
+            {
+                var originalComments = userComments.Take(diagnoseIndex).Select(c => c.Body);
+                var subIssueComments = userComments.Skip(diagnoseIndex).Select(c => c.Body);
+                
+                commentsText = $"ORIGINAL ISSUE CONTEXT:\n{string.Join("\n\n", originalComments)}\n\n" +
+                              $"SUB-ISSUE FOR @{targetUsername} (USE THIS FOR ENGINEER BRIEF):\n{string.Join("\n\n", subIssueComments)}";
+                
+                Console.WriteLine($"Sub-issue mode: Split comments at /diagnose (original: {originalComments.Count()}, sub-issue: {subIssueComments.Count()})");
+            }
+            else
+            {
+                // Fallback if /diagnose not found
+                commentsText = string.Join("\n\n", userComments.Select(c => c.Body));
+                Console.WriteLine($"Warning: Sub-issue mode but /diagnose not found in comments");
+            }
+        }
+        else
+        {
+            // Regular issue or different user's sub-issue
+            commentsText = string.Join("\n\n", userComments.Select(c => c.Body));
+            Console.WriteLine($"Using comments from target user '{targetUsername}' for engineer brief ({userComments.Count} comments)");
+        }
 
         // Generate engineer brief
         var brief = await openAiClient.GenerateEngineerBriefAsync(
