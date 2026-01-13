@@ -16,13 +16,17 @@ public class OpenAiClient
 
     public OpenAiClient()
     {
-        _apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") 
-            ?? throw new InvalidOperationException("OPENAI_API_KEY not set");
+        _apiKey = (Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "")
+            .Trim();
+        
+        if (string.IsNullOrEmpty(_apiKey))
+            throw new InvalidOperationException("OPENAI_API_KEY not set or empty");
         
         _model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4";
         
         _httpClient = new HttpClient();
-        _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
+        _httpClient.DefaultRequestHeaders.Authorization = 
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey);
 
         Console.WriteLine($"Using OpenAI model: {_model}");
     }
