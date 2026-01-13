@@ -110,10 +110,10 @@ IMPORTANT:
 - CRITICAL: Only include possible_duplicates if actual issue numbers are identified
 
 For next_steps that ask users to CHECK or VERIFY something:
-- Add practical examples showing WHERE to look (e.g., "Check your Dockerfile - usually located at ./Dockerfile or ./docker/Dockerfile")
-- Include common file paths where configurations are typically found (e.g., "Verify requirements.txt or pyproject.toml for dependencies")
-- Show typical locations for environment variables (e.g., ".env file, docker-compose.yml, or Kubernetes ConfigMaps")
-- Mention standard paths for specific technologies (e.g., "Python packages: /usr/local/lib/python3.x/site-packages or venv/lib/python3.x/site-packages")
+- Add practical examples showing WHERE to look (e.g., 'Check your Dockerfile - usually located at ./Dockerfile or ./docker/Dockerfile')
+- Include common file paths where configurations are typically found (e.g., 'Verify requirements.txt or pyproject.toml for dependencies')
+- Show typical locations for environment variables (e.g., '.env file, docker-compose.yml, or Kubernetes ConfigMaps')
+- Mention standard paths for specific technologies (e.g., 'Python packages: /usr/local/lib/python3.x/site-packages or venv/lib/python3.x/site-packages')
 - Only add examples for 2-3 key verification steps, not every single step
 - Keep examples brief and practical";
 
