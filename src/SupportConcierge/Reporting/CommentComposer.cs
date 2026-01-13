@@ -52,9 +52,17 @@ public class CommentComposer
         EngineerBrief brief,
         ScoringResult scoring,
         Dictionary<string, string> extractedFields,
-        List<string> secretWarnings)
+        List<string> secretWarnings,
+        string? username = null)
     {
         var sb = new StringBuilder();
+        
+        // Scenario 1ii: @mention the user if provided
+        if (!string.IsNullOrEmpty(username))
+        {
+            sb.AppendLine($"@{username}");
+            sb.AppendLine();
+        }
         
         sb.AppendLine($"**Summary:** {brief.Summary}");
         sb.AppendLine();

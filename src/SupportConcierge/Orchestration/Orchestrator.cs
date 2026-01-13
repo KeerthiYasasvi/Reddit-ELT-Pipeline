@@ -244,10 +244,11 @@ public class Orchestrator
         {
             // Issue is actionable - create engineer brief and route
             Console.WriteLine("Issue is actionable. Creating engineer brief...");
+            var targetUsername = currentState.CurrentSubIssueUser ?? issueAuthor;
             await FinalizeIssueAsync(
                 issue, repository, extractedFields, scoring, category,
                 specPack, githubApi, openAiClient, commentComposer, 
-                secretRedactor, stateStore, currentState);
+                secretRedactor, stateStore, currentState, targetUsername);
         }
         else if (currentState.LoopCount >= MaxLoops || (currentState.CurrentSubIssueUser != null && GetUserRoundCount(currentState.CurrentSubIssueUser, currentState) >= MaxLoops))
         {
@@ -430,7 +431,8 @@ public class Orchestrator
         CommentComposer commentComposer,
         SecretRedactor secretRedactor,
         StateStore stateStore,
-        BotState state)
+        BotState state,
+        string targetUsername)
     {
         // Get playbook and repo docs
         var playbook = specPack.Playbooks.TryGetValue(category, out var pb) ? pb : "";
@@ -469,15 +471,17 @@ public class Orchestrator
             }
         }
 
-        // Collect all comments
+        // SCENARIO 1ii FIX: Collect comments from target user only (not all users)
         var comments = await githubApi.GetIssueCommentsAsync(
             repository.Owner.Login, repository.Name, issue.Number);
         var botUsername = Environment.GetEnvironmentVariable("SUPPORTBOT_BOT_USERNAME") ?? "github-actions[bot]";
         var userComments = comments
-            .Where(c => !c.User.Login.Equals(botUsername, StringComparison.OrdinalIgnoreCase))
+            .Where(c => !c.User.Login.Equals(botUsername, StringComparison.OrdinalIgnoreCase) &&
+                        c.User.Login.Equals(targetUsername, StringComparison.OrdinalIgnoreCase))
             .Select(c => c.Body)
             .ToList();
         var commentsText = string.Join("\n\n", userComments);
+        Console.WriteLine($"Using comments from target user '{targetUsername}' for engineer brief ({userComments.Count} comments)");
 
         // Generate engineer brief
         var brief = await openAiClient.GenerateEngineerBriefAsync(
@@ -488,9 +492,9 @@ public class Orchestrator
         var allFieldsText = string.Join("\n", extractedFields.Values);
         var (_, secretFindings) = secretRedactor.RedactSecrets(allFieldsText);
 
-        // Compose and post engineer brief
+        // SCENARIO 1ii: Compose and post engineer brief with @mention
         var briefComment = commentComposer.ComposeEngineerBrief(
-            brief, scoring, extractedFields, secretFindings);
+            brief, scoring, extractedFields, secretFindings, targetUsername);
 
         // SCENARIO 1 FIX: Mark state as finalized to prevent reprocessing
         state.IsActionable = true;
