@@ -22,7 +22,8 @@ public class OpenAiClient
         if (string.IsNullOrEmpty(_apiKey))
             throw new InvalidOperationException("OPENAI_API_KEY not set or empty");
         
-        _model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4o-2024-08-06";
+        // Use gpt-4o model which supports response_format
+        _model = "gpt-4o-2024-08-06";
         
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.Authorization = 
