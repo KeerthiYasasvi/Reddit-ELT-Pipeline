@@ -1,0 +1,38 @@
+name: Support Concierge Bot
+
+on:
+  issues:
+    types: [opened, edited]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore src/SupportConcierge/SupportConcierge.csproj
+
+      - name: Build
+        run: dotnet build src/SupportConcierge/SupportConcierge.csproj --configuration Release --no-restore
+
+      - name: Run Support Concierge
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4' }}
+          SUPPORTBOT_SPEC_DIR: ${{ vars.SUPPORTBOT_SPEC_DIR || '.supportbot' }}
+          SUPPORTBOT_BOT_USERNAME: 'github-actions[bot]'
+        run: dotnet run --project src/SupportConcierge/SupportConcierge.csproj --configuration Release --no-build

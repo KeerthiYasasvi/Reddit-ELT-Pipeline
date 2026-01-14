@@ -1,21 +1,21 @@
 # Support Concierge Evaluation Report
 
-**Generated:** 2026-01-14 14:11:59 UTC
+**Generated:** 2026-01-14 14:18:23 UTC
 
 ## 📊 Summary
 
 - **Total Scenarios:** 2
-- **Successful:** 1/2 (50.0%)
-- **Failed:** 1
+- **Successful:** 2/2 (100.0%)
+- **Failed:** 0
 
 ## 🎯 Performance Metrics
 
 | Metric | Value |
 |--------|-------|
-| Average Completeness Score | 92.0/100 |
-| Average Fields Extracted | 7.0 |
+| Average Completeness Score | 91.0/100 |
+| Average Fields Extracted | 5.5 |
 | Actionable Rate | 100.0% |
-| Hallucination Warnings | 0 |
+| Hallucination Warnings | 1 |
 
 ## 📋 Detailed Results
 
@@ -23,22 +23,28 @@
 
 **Status:** Passed
 
-- **Detected Category:** `runtime`
-- **Completeness Score:** 92/100
-- **Fields Extracted:** 7
+- **Detected Category:** `api`
+- **Completeness Score:** 93/100
+- **Fields Extracted:** 6
 - **Actionable:** Yes
 
-### ❌ sample_issue_runtime_crash
+### ✅ sample_issue_runtime_crash
 
-**Status:** Failed
+**Status:** Passed
 
-**Error:** Simulated failure for demonstration
+- **Detected Category:** `runtime`
+- **Completeness Score:** 89/100
+- **Fields Extracted:** 5
+- **Actionable:** Yes
+
+**⚠️ Warnings:**
+- Field 'version' value may be hallucinated (no matching terms in source)
 
 ## 🏆 Overall Grade
 
-**F (Poor)** - 50.0% success rate
+**A (Excellent)** - 100.0% success rate
 
-❌ The bot requires significant improvements.
+✨ The bot is performing well across test scenarios.
 
 ---
 

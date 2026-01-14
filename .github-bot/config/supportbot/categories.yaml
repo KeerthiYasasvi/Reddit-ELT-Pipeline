@@ -1,0 +1,113 @@
+categories:
+  - name: setup
+    description: Installation, configuration, or initial setup issues
+    keywords:
+      - install
+      - setup
+      - configure
+      - getting started
+      - initialization
+      - permission
+      - access denied
+      - docker-compose
+
+  - name: build
+    description: Compilation, build errors, or dependency issues
+    keywords:
+      - build
+      - compile
+      - dependency
+      - npm
+      - package
+      - missing module
+      - syntax error
+      - cannot find
+      - requirements.txt
+
+  - name: runtime
+    description: Runtime errors, crashes, or unexpected behavior during execution
+    keywords:
+      - crash
+      - exception
+      - error at runtime
+      - stack trace
+      - segfault
+      - panic
+      - unexpected behavior
+      - throws
+
+  - name: bug
+    description: Functional bugs or incorrect behavior
+    keywords:
+      - bug
+      - incorrect
+      - wrong result
+      - not working
+      - broken
+      - regression
+      - failed test
+
+  - name: docs
+    description: Documentation issues, typos, or missing information
+    keywords:
+      - documentation
+      - readme
+      - typo
+      - example
+      - tutorial
+      - guide
+      - clarification
+
+  # Reddit-ELT-Pipeline specific categories
+  - name: airflow_dag
+    description: Airflow DAG failures, task issues, or scheduling problems
+    keywords:
+      - airflow
+      - dag
+      - task failed
+      - scheduler
+      - webserver
+      - operator
+      - trigger
+      - backfill
+      - retry
+
+  - name: reddit_api
+    description: Reddit API connection, authentication, or extraction issues
+    keywords:
+      - reddit
+      - praw
+      - api key
+      - client_id
+      - secret
+      - subreddit
+      - rate limit
+      - 403
+      - 401
+      - authentication
+
+  - name: dbt_transformation
+    description: dbt model compilation or execution errors
+    keywords:
+      - dbt
+      - model
+      - transformation
+      - compile
+      - sql error
+      - schema
+      - materialization
+      - incremental
+      - snapshot
+
+  - name: postgres_database
+    description: PostgreSQL connection, query, or data issues
+    keywords:
+      - postgres
+      - database
+      - sql
+      - connection refused
+      - psycopg2
+      - table
+      - schema
+      - constraint
+      - foreign key
