@@ -23,6 +23,14 @@ public class Orchestrator
             return;
         }
 
+        // SCENARIO 8: Extract action type for issue events to detect edits
+        string? actionType = null;
+        if (eventName == "issues" && eventPayload.TryGetProperty("action", out var actionElement))
+        {
+            actionType = actionElement.GetString();
+            Console.WriteLine($"Issue action type: {actionType}");
+        }
+
         // Extract issue and repository info
         var issue = eventPayload.GetProperty("issue").Deserialize<GitHubIssue>();
         var repository = eventPayload.GetProperty("repository").Deserialize<GitHubRepository>();
@@ -70,6 +78,72 @@ public class Orchestrator
                     Console.WriteLine($"Found existing state: Loop {currentState.LoopCount}, Category: {currentState.Category}");
                     break;
                 }
+            }
+        }
+
+        // SCENARIO 8: Smart Edit Detection - skip trivial edits
+        if (eventName == "issues" && actionType == "edited" && currentState != null)
+        {
+            Console.WriteLine("Edit event detected. Checking if re-processing is needed...");
+            
+            // Check if we have changes information
+            if (eventPayload.TryGetProperty("changes", out var changesElement))
+            {
+                // Get old and new body if body was changed
+                bool bodyChanged = changesElement.TryGetProperty("body", out var bodyChange);
+                bool titleChanged = changesElement.TryGetProperty("title", out var titleChange);
+                
+                if (!bodyChanged && !titleChanged)
+                {
+                    Console.WriteLine("Edit detected but no body or title changes. Skipping.");
+                    return;
+                }
+
+                // If only title changed, skip
+                if (!bodyChanged && titleChanged)
+                {
+                    Console.WriteLine("Only title was edited. Skipping re-processing.");
+                    return;
+                }
+
+                // Check edit count limit
+                const int MaxEditsToProcess = 3;
+                if (currentState.EditCount >= MaxEditsToProcess)
+                {
+                    Console.WriteLine($"Edit count ({currentState.EditCount}) has reached maximum ({MaxEditsToProcess}). Skipping re-processing.");
+                    return;
+                }
+
+                // Compare new body with last processed body
+                string? oldBody = bodyChange.TryGetProperty("from", out var fromElement) ? fromElement.GetString() : null;
+                string newBody = issue.Body ?? "";
+                
+                // If we have a cached last processed body, use that for comparison
+                string? lastProcessedBody = currentState.LastProcessedBody;
+                
+                if (!string.IsNullOrEmpty(lastProcessedBody))
+                {
+                    // Check if the change is meaningful
+                    if (IsTrivialEdit(lastProcessedBody, newBody))
+                    {
+                        Console.WriteLine("Edit appears to be trivial (typo fix or formatting). Skipping re-processing.");
+                        return;
+                    }
+                }
+                else if (!string.IsNullOrEmpty(oldBody))
+                {
+                    // Fallback to old body from changes element
+                    if (IsTrivialEdit(oldBody, newBody))
+                    {
+                        Console.WriteLine("Edit appears to be trivial (typo fix or formatting). Skipping re-processing.");
+                        return;
+                    }
+                }
+
+                // Meaningful edit detected - increment edit count and update cached body
+                Console.WriteLine($"Meaningful edit detected. Processing edit #{currentState.EditCount + 1}");
+                currentState.EditCount++;
+                currentState.LastProcessedBody = newBody;
             }
         }
 
@@ -226,6 +300,8 @@ public class Orchestrator
         if (currentState == null)
         {
             currentState = stateStore.CreateInitialState(category, issueAuthor);
+            // SCENARIO 8: Cache initial issue body for edit detection
+            currentState.LastProcessedBody = issue.Body;
         }
 
         // SCENARIO 1ii: Handle /diagnose command for sub-issues
@@ -667,5 +743,99 @@ public class Orchestrator
             return GetUserRoundCount(state.CurrentSubIssueUser, state) >= MaxRounds;
         }
         return state.LoopCount >= MaxRounds;
+    }
+
+    /// <summary>
+    /// Scenario 8: Determine if an edit is trivial (typo fix, formatting) vs meaningful (new information)
+    /// </summary>
+    private bool IsTrivialEdit(string oldText, string newText)
+    {
+        if (string.IsNullOrEmpty(oldText) || string.IsNullOrEmpty(newText))
+        {
+            return false; // Empty to non-empty or vice versa is meaningful
+        }
+
+        // Normalize both texts for comparison (remove extra whitespace, normalize line endings)
+        var normalizedOld = NormalizeText(oldText);
+        var normalizedNew = NormalizeText(newText);
+
+        // If they're identical after normalization, it's just formatting
+        if (normalizedOld == normalizedNew)
+        {
+            Console.WriteLine("Edit is purely formatting (whitespace/line ending changes)");
+            return true;
+        }
+
+        // Calculate edit distance as percentage of original length
+        int editDistance = CalculateLevenshteinDistance(normalizedOld, normalizedNew);
+        int maxLength = Math.Max(normalizedOld.Length, normalizedNew.Length);
+        double changePercentage = (double)editDistance / maxLength * 100;
+
+        Console.WriteLine($"Edit distance: {editDistance}, Max length: {maxLength}, Change: {changePercentage:F2}%");
+
+        // If less than 5% of the text changed, consider it trivial
+        const double TrivialThreshold = 5.0;
+        if (changePercentage < TrivialThreshold)
+        {
+            Console.WriteLine($"Edit is trivial (< {TrivialThreshold}% change)");
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Normalize text for comparison by removing extra whitespace and normalizing line endings
+    /// </summary>
+    private string NormalizeText(string text)
+    {
+        // Replace all whitespace sequences with single space
+        var normalized = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ");
+        return normalized.Trim().ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Calculate Levenshtein distance between two strings
+    /// </summary>
+    private int CalculateLevenshteinDistance(string source, string target)
+    {
+        if (string.IsNullOrEmpty(source))
+        {
+            return target?.Length ?? 0;
+        }
+
+        if (string.IsNullOrEmpty(target))
+        {
+            return source.Length;
+        }
+
+        int sourceLength = source.Length;
+        int targetLength = target.Length;
+
+        var distance = new int[sourceLength + 1, targetLength + 1];
+
+        for (int i = 0; i <= sourceLength; i++)
+        {
+            distance[i, 0] = i;
+        }
+
+        for (int j = 0; j <= targetLength; j++)
+        {
+            distance[0, j] = j;
+        }
+
+        for (int i = 1; i <= sourceLength; i++)
+        {
+            for (int j = 1; j <= targetLength; j++)
+            {
+                int cost = (target[j - 1] == source[i - 1]) ? 0 : 1;
+
+                distance[i, j] = Math.Min(
+                    Math.Min(distance[i - 1, j] + 1, distance[i, j - 1] + 1),
+                    distance[i - 1, j - 1] + cost);
+            }
+        }
+
+        return distance[sourceLength, targetLength];
     }
 }
