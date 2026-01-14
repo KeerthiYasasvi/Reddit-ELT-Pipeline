@@ -337,6 +337,33 @@ public class OpenAiClient
             };
         }
     }
+
+    /// <summary>
+    /// Regenerate engineer brief based on user feedback (Scenario 7).
+    /// </summary>
+    public async Task<EngineerBrief> RegenerateEngineerBriefAsync(
+        string previousBrief,
+        string userFeedback,
+        Dictionary<string, string> extractedFields,
+        string playbook,
+        string category)
+    {
+        var prompt = Prompts.RegenerateEngineerBriefWithFeedback(
+            previousBrief, userFeedback, extractedFields, playbook, category);
+
+        var messages = new List<ChatMessage>
+        {
+            new ChatMessage { Role = "system", Content = "You are an expert technical support engineer revising case briefs based on user feedback." },
+            new ChatMessage { Role = "user", Content = prompt }
+        };
+
+        var content = await CallOpenAiApiAsync(messages, Schemas.EngineerBriefSchema, "engineer_brief");
+        
+        Console.WriteLine($"Regenerated Engineer Brief raw response:\n{content}\n");
+        
+        return JsonSerializer.Deserialize<EngineerBrief>(content) 
+            ?? new EngineerBrief();
+    }
 }
 
 

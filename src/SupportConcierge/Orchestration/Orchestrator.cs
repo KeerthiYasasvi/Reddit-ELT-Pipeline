@@ -23,14 +23,6 @@ public class Orchestrator
             return;
         }
 
-        // SCENARIO 8: Extract action type for issue events to detect edits
-        string? actionType = null;
-        if (eventName == "issues" && eventPayload.TryGetProperty("action", out var actionElement))
-        {
-            actionType = actionElement.GetString();
-            Console.WriteLine($"Issue action type: {actionType}");
-        }
-
         // Extract issue and repository info
         var issue = eventPayload.GetProperty("issue").Deserialize<GitHubIssue>();
         var repository = eventPayload.GetProperty("repository").Deserialize<GitHubRepository>();
@@ -41,8 +33,23 @@ public class Orchestrator
             return;
         }
 
-        // SCENARIO 1 FIX: For issue_comment events, we'll handle command parsing later
-        // (moved to main logic to properly track comment and author info)
+        // SCENARIO 1 FIX: For issue_comment events, only process if comment is from issue author
+        if (eventName == "issue_comment")
+        {
+            var comment = eventPayload.GetProperty("comment").Deserialize<GitHubComment>();
+            if (comment == null)
+            {
+                Console.WriteLine("ERROR: Could not parse comment from issue_comment event");
+                return;
+            }
+
+            var commentAuthor = issue.User.Login;
+            if (!comment.User.Login.Equals(commentAuthor, StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine($"Skipping: Comment from {comment.User.Login} (not from issue author {commentAuthor})");
+                return;
+            }
+        }
 
         Console.WriteLine($"Issue #{issue.Number}: {issue.Title}");
         Console.WriteLine($"Repository: {repository.FullName}");
@@ -81,187 +88,44 @@ public class Orchestrator
             }
         }
 
-        // SCENARIO 8: Smart Edit Detection - skip trivial edits
-        if (eventName == "issues" && actionType == "edited" && currentState != null)
-        {
-            Console.WriteLine("Edit event detected. Checking if re-processing is needed...");
-            
-            // Check if we have changes information
-            if (eventPayload.TryGetProperty("changes", out var changesElement))
-            {
-                // Get old and new body if body was changed
-                bool bodyChanged = changesElement.TryGetProperty("body", out var bodyChange);
-                bool titleChanged = changesElement.TryGetProperty("title", out var titleChange);
-                
-                if (!bodyChanged && !titleChanged)
-                {
-                    Console.WriteLine("Edit detected but no body or title changes. Skipping.");
-                    return;
-                }
-
-                // If only title changed, skip
-                if (!bodyChanged && titleChanged)
-                {
-                    Console.WriteLine("Only title was edited. Skipping re-processing.");
-                    return;
-                }
-
-                // Check edit count limit
-                const int MaxEditsToProcess = 3;
-                if (currentState.EditCount >= MaxEditsToProcess)
-                {
-                    Console.WriteLine($"Edit count ({currentState.EditCount}) has reached maximum ({MaxEditsToProcess}). Skipping re-processing.");
-                    return;
-                }
-
-                // Compare new body with last processed body
-                string? oldBody = bodyChange.TryGetProperty("from", out var fromElement) ? fromElement.GetString() : null;
-                string newBody = issue.Body ?? "";
-                
-                // If we have a cached last processed body, use that for comparison
-                string? lastProcessedBody = currentState.LastProcessedBody;
-                
-                if (!string.IsNullOrEmpty(lastProcessedBody))
-                {
-                    // Check if the change is meaningful
-                    if (IsTrivialEdit(lastProcessedBody, newBody))
-                    {
-                        Console.WriteLine("Edit appears to be trivial (typo fix or formatting). Skipping re-processing.");
-                        return;
-                    }
-                }
-                else if (!string.IsNullOrEmpty(oldBody))
-                {
-                    // Fallback to old body from changes element
-                    if (IsTrivialEdit(oldBody, newBody))
-                    {
-                        Console.WriteLine("Edit appears to be trivial (typo fix or formatting). Skipping re-processing.");
-                        return;
-                    }
-                }
-
-                // Meaningful edit detected - increment edit count and update cached body
-                Console.WriteLine($"Meaningful edit detected. Processing edit #{currentState.EditCount + 1}");
-                currentState.EditCount++;
-                currentState.LastProcessedBody = newBody;
-            }
-        }
-
-        // SCENARIO 1ii: Extract comment info for command handling (if this is an issue_comment event)
-        GitHubComment? incomingComment = null;
-        string? commentAuthor = null;
-        if (eventName == "issue_comment")
-        {
-            incomingComment = eventPayload.GetProperty("comment").Deserialize<GitHubComment>();
-            if (incomingComment != null)
-            {
-                commentAuthor = incomingComment.User.Login;
-                Console.WriteLine($"Processing comment from {commentAuthor}");
-            }
-        }
-
-        // SCENARIO 1ii: Check for /stop command (user opt-out) - process regardless of finalization status
-        if (incomingComment != null && commentAuthor != null)
-        {
-            var (command, args) = ParseCommand(incomingComment.Body);
-            if (command == "stop")
-            {
-                Console.WriteLine($"User {commentAuthor} used /stop command. Adding to OptedOutUsers.");
-                if (currentState == null)
-                {
-                    currentState = stateStore.CreateInitialState("unknown", issue.User.Login);
-                }
-                if (!currentState.OptedOutUsers.Contains(commentAuthor, StringComparer.OrdinalIgnoreCase))
-                {
-                    currentState.OptedOutUsers.Add(commentAuthor);
-                }
-                // Post acknowledgment
-                var stopAck = $"Got it! I won't ask you any more questions on this issue.";
-                var stopWithState = stateStore.EmbedState(stopAck, currentState);
-                await githubApi.PostCommentAsync(
-                    repository.Owner.Login, repository.Name, issue.Number, stopWithState);
-                Console.WriteLine("Posted /stop acknowledgment.");
-                return;
-            }
-        }
+        // Initialize validators and scorers early (needed for Scenario 7)
+        var validators = new Validators(specPack.Validators);
+        var secretRedactor = new SecretRedactor(specPack.Validators.SecretPatterns);
 
         // SCENARIO 1 FIX: Check if issue is already finalized
-        // But allow if comment author is using /diagnose or is the original author or is a tracked sub-issue user
-        bool isOriginalAuthor = commentAuthor?.Equals(issue.User.Login, StringComparison.OrdinalIgnoreCase) ?? false;
-        bool isDiagnoseCommand = false;
-        
-        if (incomingComment != null && currentState != null)
+        if (currentState != null && currentState.IsFinalized)
         {
-            var (command, args) = ParseCommand(incomingComment.Body);
-            isDiagnoseCommand = (command == "diagnose");
-        }
-
-        // Check if commenter is being tracked as sub-issue user (needed for finalization check)
-        bool isTrackedSubIssueUserEarly = commentAuthor != null && currentState != null && currentState.SubIssueUsers.ContainsKey(commentAuthor.ToLowerInvariant());
-
-        if (currentState != null && currentState.IsFinalized && !isDiagnoseCommand && !isOriginalAuthor && !isTrackedSubIssueUserEarly)
-        {
-            Console.WriteLine($"Issue already finalized and no /diagnose command. Skipping non-author processing.");
-            return;
-        }
-
-        // SCENARIO 1iii: Check if commenter is opted-out, but allow re-engagement via /diagnose
-        if (incomingComment != null && commentAuthor != null && currentState != null)
-        {
-            if (IsUserOptedOut(commentAuthor, currentState))
+            // SCENARIO 7: Check for disagreement in new comment
+            if (eventName == "issue_comment" && currentState.BriefIterationCount < 2)
             {
-                if (isDiagnoseCommand)
+                var incomingComment = eventPayload.GetProperty("comment").Deserialize<GitHubComment>();
+                if (incomingComment != null && DetectDisagreement(incomingComment.Body))
                 {
-                    // Re-engage: Remove user from opted-out list
-                    currentState.OptedOutUsers.Remove(commentAuthor.ToLowerInvariant());
-                    Console.WriteLine($"User {commentAuthor} re-engaged via /diagnose. Removed from opted-out list.");
-                }
-                else
-                {
-                    Console.WriteLine($"User {commentAuthor} is opted-out and not using /diagnose. Skipping processing.");
+                    Console.WriteLine($"Disagreement detected from {incomingComment.User.Login}. Regenerating brief...");
+                    await HandleBriefDisagreementAsync(
+                        issue, repository, incomingComment.Body, currentState,
+                        specPack, githubApi, openAiClient, commentComposer, 
+                        secretRedactor, stateStore, comments);
                     return;
                 }
             }
-        }
-
-        // SCENARIO 1ii: Check if commenter is being tracked as sub-issue user
-        bool isTrackedSubIssueUser = false;
-        if (commentAuthor != null && currentState != null)
-        {
-            isTrackedSubIssueUser = currentState.SubIssueUsers.ContainsKey(commentAuthor.ToLowerInvariant());
-        }
-
-        // SCENARIO 1 FIX: Only process comments from the issue author (unless /diagnose, already tracked, or new issue)
-        if (eventName == "issue_comment" && commentAuthor != null && !isOriginalAuthor && !isDiagnoseCommand && !isTrackedSubIssueUser)
-        {
-            Console.WriteLine($"Skipping: Comment from {commentAuthor} (not from issue author, not using /diagnose, and not tracked sub-issue user)");
+            
+            Console.WriteLine($"Issue already finalized at {currentState.FinalizedAt}. Skipping processing to prevent duplicate responses.");
+            Console.WriteLine("Note: If this is a new issue from the same author, they should open a new issue.");
             return;
-        }
-
-        // SCENARIO 1ii: If this is a tracked sub-issue user, set them as current
-        if (isTrackedSubIssueUser && currentState != null && commentAuthor != null)
-        {
-            currentState.CurrentSubIssueUser = commentAuthor;
-            Console.WriteLine($"Processing tracked sub-issue user: {commentAuthor}");
         }
 
         // SCENARIO 1 FIX: Only process comments from the issue author
         // Filter comments to only include issue author's responses (for field extraction)
         var issueAuthor = issue.User.Login;
-        
-        // SCENARIO 1ii: If processing a sub-issue user, use their comments instead
-        var targetUser = currentState?.CurrentSubIssueUser ?? issueAuthor;
-        var targetComments = comments
-            .Where(c => c.User.Login.Equals(targetUser, StringComparison.OrdinalIgnoreCase))
+        var authorComments = comments
+            .Where(c => c.User.Login.Equals(issueAuthor, StringComparison.OrdinalIgnoreCase))
             .ToList();
         
         Console.WriteLine($"Issue author: {issueAuthor}");
-        Console.WriteLine($"Target user: {targetUser}");
-        Console.WriteLine($"Total comments: {comments.Count}, Target user comments: {targetComments.Count}");
+        Console.WriteLine($"Total comments: {comments.Count}, Author comments: {authorComments.Count}");
 
-        // Initialize validators and scorers
-        var validators = new Validators(specPack.Validators);
-        var secretRedactor = new SecretRedactor(specPack.Validators.SecretPatterns);
+        // Scorer already initialized above
         var scorer = new CompletenessScorer(validators);
 
         // Step 1: Determine category
@@ -284,10 +148,10 @@ public class Orchestrator
             return;
         }
 
-        // Step 2: Extract fields (using target user's comments + original issue)
+        // Step 2: Extract fields (using only author comments + original issue)
         Console.WriteLine("Extracting fields from issue...");
         var extractedFields = await ExtractFieldsAsync(
-            issue, targetComments, checklist, parser, openAiClient, secretRedactor);
+            issue, authorComments, checklist, parser, openAiClient, secretRedactor);
 
         Console.WriteLine($"Extracted {extractedFields.Count} fields");
 
@@ -300,31 +164,6 @@ public class Orchestrator
         if (currentState == null)
         {
             currentState = stateStore.CreateInitialState(category, issueAuthor);
-            // SCENARIO 8: Cache initial issue body for edit detection
-            currentState.LastProcessedBody = issue.Body;
-        }
-
-        // SCENARIO 1ii: Handle /diagnose command for sub-issues
-        if (isDiagnoseCommand && incomingComment != null && commentAuthor != null)
-        {
-            Console.WriteLine($"Processing /diagnose command from {commentAuthor}");
-            
-            // Add or update sub-issue user tracking
-            var userLower = commentAuthor.ToLowerInvariant();
-            if (!currentState.SubIssueUsers.ContainsKey(userLower))
-            {
-                currentState.SubIssueUsers[userLower] = 0;  // Start at round 0
-                Console.WriteLine($"Added {commentAuthor} to SubIssueUsers tracking");
-            }
-            
-            currentState.CurrentSubIssueUser = commentAuthor;
-            
-            // Check if this user has already reached max rounds
-            if (GetUserRoundCount(commentAuthor, currentState) >= MaxLoops)
-            {
-                Console.WriteLine($"User {commentAuthor} has already reached max {MaxLoops} rounds for sub-issue. Skipping.");
-                return;
-            }
         }
 
         // Step 4: Decide action based on completeness and loop count
@@ -332,17 +171,15 @@ public class Orchestrator
         {
             // Issue is actionable - create engineer brief and route
             Console.WriteLine("Issue is actionable. Creating engineer brief...");
-            var targetUsername = currentState.CurrentSubIssueUser ?? issueAuthor;
             await FinalizeIssueAsync(
                 issue, repository, extractedFields, scoring, category,
                 specPack, githubApi, openAiClient, commentComposer, 
-                secretRedactor, stateStore, currentState, targetUsername);
+                secretRedactor, stateStore, currentState);
         }
-        else if (currentState.LoopCount >= MaxLoops || (currentState.CurrentSubIssueUser != null && GetUserRoundCount(currentState.CurrentSubIssueUser, currentState) >= MaxLoops))
+        else if (currentState.LoopCount >= MaxLoops)
         {
             // Max loops reached - escalate
-            var targetUserForEscalation = currentState.CurrentSubIssueUser ?? issue.User.Login;
-            Console.WriteLine($"Max loops ({MaxLoops}) reached for {targetUserForEscalation} without becoming actionable. Escalating...");
+            Console.WriteLine($"Max loops ({MaxLoops}) reached without becoming actionable. Escalating...");
             await EscalateIssueAsync(
                 issue, repository, scoring, specPack, 
                 githubApi, commentComposer, stateStore, currentState);
@@ -475,36 +312,20 @@ public class Orchestrator
             return;
         }
 
-        // SCENARIO 1ii: Update state - handle sub-issue users separately
-        if (state.CurrentSubIssueUser != null)
-        {
-            // Track round count per sub-issue user
-            var userLower = state.CurrentSubIssueUser.ToLowerInvariant();
-            state.SubIssueUsers[userLower]++;
-            Console.WriteLine($"Incremented round count for {state.CurrentSubIssueUser}: {state.SubIssueUsers[userLower]}");
-        }
-        else
-        {
-            // Original author - use global loop count
-            state.LoopCount++;
-        }
-
+        // Update state
+        state.LoopCount++;
         state.AskedFields.AddRange(questions.Select(q => q.Field));
         state.CompletenessScore = scoring.Score;
         state.LastUpdated = DateTime.UtcNow;
 
-        // SCENARIO 1ii: Determine who to @mention in the comment
-        var targetUsername = state.CurrentSubIssueUser ?? issue.User.Login;
-
         // Compose and post comment
-        var loopDisplay = state.CurrentSubIssueUser != null ? state.SubIssueUsers[state.CurrentSubIssueUser.ToLowerInvariant()] : state.LoopCount;
-        var commentBody = commentComposer.ComposeFollowUpComment(questions, loopDisplay, targetUsername);
+        var commentBody = commentComposer.ComposeFollowUpComment(questions, state.LoopCount);
         var commentWithState = stateStore.EmbedState(commentBody, state);
 
         await githubApi.PostCommentAsync(
             repository.Owner.Login, repository.Name, issue.Number, commentWithState);
 
-        Console.WriteLine($"Posted follow-up questions (round {loopDisplay}) to @{targetUsername}");
+        Console.WriteLine($"Posted follow-up questions (loop {state.LoopCount})");
     }
 
     private async Task FinalizeIssueAsync(
@@ -519,8 +340,7 @@ public class Orchestrator
         CommentComposer commentComposer,
         SecretRedactor secretRedactor,
         StateStore stateStore,
-        BotState state,
-        string targetUsername)
+        BotState state)
     {
         // Get playbook and repo docs
         var playbook = specPack.Playbooks.TryGetValue(category, out var pb) ? pb : "";
@@ -559,47 +379,15 @@ public class Orchestrator
             }
         }
 
-        // SCENARIO 1ii FIX: Collect comments from target user only and label for LLM context
+        // Collect all comments
         var comments = await githubApi.GetIssueCommentsAsync(
             repository.Owner.Login, repository.Name, issue.Number);
         var botUsername = Environment.GetEnvironmentVariable("SUPPORTBOT_BOT_USERNAME") ?? "github-actions[bot]";
         var userComments = comments
-            .Where(c => !c.User.Login.Equals(botUsername, StringComparison.OrdinalIgnoreCase) &&
-                        c.User.Login.Equals(targetUsername, StringComparison.OrdinalIgnoreCase))
+            .Where(c => !c.User.Login.Equals(botUsername, StringComparison.OrdinalIgnoreCase))
+            .Select(c => c.Body)
             .ToList();
-
-        string commentsText;
-
-        // If this is a sub-issue, separate original vs sub-issue comments
-        if (!string.IsNullOrEmpty(state.CurrentSubIssueUser) && 
-            state.CurrentSubIssueUser.Equals(targetUsername, StringComparison.OrdinalIgnoreCase))
-        {
-            // Find the /diagnose command comment
-            int diagnoseIndex = userComments.FindIndex(c => c.Body.Contains("/diagnose"));
-            
-            if (diagnoseIndex >= 0)
-            {
-                var originalComments = userComments.Take(diagnoseIndex).Select(c => c.Body);
-                var subIssueComments = userComments.Skip(diagnoseIndex).Select(c => c.Body);
-                
-                commentsText = $"ORIGINAL ISSUE CONTEXT:\n{string.Join("\n\n", originalComments)}\n\n" +
-                              $"SUB-ISSUE FOR @{targetUsername} (USE THIS FOR ENGINEER BRIEF):\n{string.Join("\n\n", subIssueComments)}";
-                
-                Console.WriteLine($"Sub-issue mode: Split comments at /diagnose (original: {originalComments.Count()}, sub-issue: {subIssueComments.Count()})");
-            }
-            else
-            {
-                // Fallback if /diagnose not found
-                commentsText = string.Join("\n\n", userComments.Select(c => c.Body));
-                Console.WriteLine($"Warning: Sub-issue mode but /diagnose not found in comments");
-            }
-        }
-        else
-        {
-            // Regular issue or different user's sub-issue
-            commentsText = string.Join("\n\n", userComments.Select(c => c.Body));
-            Console.WriteLine($"Using comments from target user '{targetUsername}' for engineer brief ({userComments.Count} comments)");
-        }
+        var commentsText = string.Join("\n\n", userComments);
 
         // Generate engineer brief
         var brief = await openAiClient.GenerateEngineerBriefAsync(
@@ -610,9 +398,9 @@ public class Orchestrator
         var allFieldsText = string.Join("\n", extractedFields.Values);
         var (_, secretFindings) = secretRedactor.RedactSecrets(allFieldsText);
 
-        // SCENARIO 1ii: Compose and post engineer brief with @mention
+        // Compose and post engineer brief
         var briefComment = commentComposer.ComposeEngineerBrief(
-            brief, scoring, extractedFields, secretFindings, targetUsername);
+            brief, scoring, extractedFields, secretFindings);
 
         // SCENARIO 1 FIX: Mark state as finalized to prevent reprocessing
         state.IsActionable = true;
@@ -689,153 +477,117 @@ public class Orchestrator
     }
 
     /// <summary>
-    /// Scenario 1ii: Parse commands from comment text
+    /// Detect disagreement keywords in user feedback (Scenario 7).
     /// </summary>
-    private (string? command, string args) ParseCommand(string commentBody)
+    private bool DetectDisagreement(string userComment)
     {
-        var trimmed = commentBody.Trim();
+        var disagreementKeywords = new[]
+        {
+            "doesn't apply", "don't apply", "does not apply", "do not apply",
+            "already tried", "already did", "already done",
+            "didn't work", "did not work", "doesn't work", "does not work",
+            "still broken", "still failing", "still see", "still getting",
+            "not working", "not relevant", "not applicable",
+            "different error", "different issue", "different problem",
+            "need clarification", "not sure how", "unclear how",
+            "not my case", "not my situation", "doesn't match"
+        };
+
+        var lowerComment = userComment.ToLowerInvariant();
+        return disagreementKeywords.Any(keyword => lowerComment.Contains(keyword));
+    }
+
+    /// <summary>
+    /// Handle user disagreement with engineer brief (Scenario 7).
+    /// </summary>
+    private async Task HandleBriefDisagreementAsync(
+        GitHubIssue issue,
+        GitHubRepository repository,
+        string userFeedback,
+        BotState state,
+        SpecModels.SpecPackConfig specPack,
+        GitHubApi githubApi,
+        OpenAiClient openAiClient,
+        CommentComposer commentComposer,
+        SecretRedactor secretRedactor,
+        StateStore stateStore,
+        List<GitHubComment> allComments)
+    {
+        state.BriefIterationCount++;
         
-        // Check for /diagnose command
-        if (trimmed.StartsWith("/diagnose", StringComparison.OrdinalIgnoreCase))
+        if (state.BriefIterationCount >= 2)
         {
-            var args = trimmed.Length > 9 ? trimmed.Substring(9).Trim() : "";
-            return ("diagnose", args);
+            // Escalate after 2 iterations
+            var escalationComment = $@"I've attempted to provide guidance twice, but it seems we're not addressing your specific situation yet. 
+
+This issue may benefit from human review. I'm adding the escalation label for a maintainer to take a closer look.
+
+{string.Join(" ", specPack.Routing.EscalationMentions)}";
+
+            state.LastUpdated = DateTime.UtcNow;
+            state.IsFinalized = true;
+            state.FinalizedAt = DateTime.UtcNow;
+
+            var commentWithState = stateStore.EmbedState(escalationComment, state);
+            await githubApi.PostCommentAsync(
+                repository.Owner.Login, repository.Name, issue.Number, commentWithState);
+
+            await githubApi.AddLabelsAsync(
+                repository.Owner.Login, repository.Name, issue.Number,
+                new List<string> { "needs-maintainer-review" });
+
+            Console.WriteLine($"Escalated after {state.BriefIterationCount} iterations");
+            return;
         }
+
+        // Regenerate brief with feedback
+        Console.WriteLine($"Regenerating brief (iteration {state.BriefIterationCount})...");
+
+        // Extract fields from all comments
+        var parser = new IssueFormParser();
+        var issueAuthor = issue.User.Login;
+        var authorComments = allComments
+            .Where(c => c.User.Login.Equals(issueAuthor, StringComparison.OrdinalIgnoreCase))
+            .Select(c => c.Body)
+            .ToList();
+
+        var allText = $"{issue.Body}\n\n{string.Join("\n\n", authorComments)}";
+        var checklist = specPack.Checklists.TryGetValue(state.Category, out var ck) ? ck : null;
+
+        var requiredFieldNames = checklist?.RequiredFields.Select(f => f.Name).ToList() ?? new List<string>();
+        var extractedFields = await openAiClient.ExtractCasePacketAsync(
+            issue.Body,
+            string.Join("\n\n", authorComments),
+            requiredFieldNames);
+
+        var playbook = specPack.Playbooks.TryGetValue(state.Category, out var pb) ? pb : "";
+        var previousBrief = ""; // Could extract from previous comment if needed
+
+        var revisedBrief = await openAiClient.RegenerateEngineerBriefAsync(
+            previousBrief, userFeedback, extractedFields, playbook, state.Category);
+
+        var dummyScoring = new ScoringResult { Score = 100, IsActionable = true };
+        var (redactedFields, secretFindings) = secretRedactor.RedactSecrets(string.Join("\n", extractedFields.Values));
         
-        // Check for /stop command (also support /no-questions)
-        if (trimmed.StartsWith("/stop", StringComparison.OrdinalIgnoreCase) || 
-            trimmed.StartsWith("/no-questions", StringComparison.OrdinalIgnoreCase))
-        {
-            return ("stop", "");
-        }
-        
-        return (null, "");
-    }
+        var briefComment = commentComposer.ComposeEngineerBrief(
+            revisedBrief, dummyScoring, extractedFields, secretFindings, issue.User.Login);
 
-    /// <summary>
-    /// Scenario 1ii: Check if a user is opted out
-    /// </summary>
-    private bool IsUserOptedOut(string username, BotState state)
-    {
-        return state.OptedOutUsers.Contains(username, StringComparer.OrdinalIgnoreCase);
-    }
+        briefComment = $@"Thanks for the clarification! Here's a revised approach:
 
-    /// <summary>
-    /// Scenario 1ii: Get round count for a sub-issue user (or 0 if not tracked)
-    /// </summary>
-    private int GetUserRoundCount(string username, BotState state)
-    {
-        if (state.SubIssueUsers.TryGetValue(username.ToLowerInvariant(), out var count))
-        {
-            return count;
-        }
-        return 0;
-    }
+{briefComment}";
 
-    /// <summary>
-    /// Scenario 1ii: Check if original author has reached max rounds
-    /// </summary>
-    private bool HasMaxRoundsBeenReached(BotState state, bool isSubIssueUser)
-    {
-        const int MaxRounds = 3;
-        if (isSubIssueUser && state.CurrentSubIssueUser != null)
-        {
-            return GetUserRoundCount(state.CurrentSubIssueUser, state) >= MaxRounds;
-        }
-        return state.LoopCount >= MaxRounds;
-    }
+        var (redactedBrief, _) = secretRedactor.RedactSecrets(briefComment);
+        state.LastUpdated = DateTime.UtcNow;
 
-    /// <summary>
-    /// Scenario 8: Determine if an edit is trivial (typo fix, formatting) vs meaningful (new information)
-    /// </summary>
-    private bool IsTrivialEdit(string oldText, string newText)
-    {
-        if (string.IsNullOrEmpty(oldText) || string.IsNullOrEmpty(newText))
+        var revisedBriefWithState = stateStore.EmbedState(redactedBrief, state);
+        var postedComment = await githubApi.PostCommentAsync(
+            repository.Owner.Login, repository.Name, issue.Number, revisedBriefWithState);
+
+        if (postedComment != null)
         {
-            return false; // Empty to non-empty or vice versa is meaningful
+            state.EngineerBriefCommentId = postedComment.Id;
         }
 
-        // Normalize both texts for comparison (remove extra whitespace, normalize line endings)
-        var normalizedOld = NormalizeText(oldText);
-        var normalizedNew = NormalizeText(newText);
-
-        // If they're identical after normalization, it's just formatting
-        if (normalizedOld == normalizedNew)
-        {
-            Console.WriteLine("Edit is purely formatting (whitespace/line ending changes)");
-            return true;
-        }
-
-        // Calculate edit distance as percentage of original length
-        int editDistance = CalculateLevenshteinDistance(normalizedOld, normalizedNew);
-        int maxLength = Math.Max(normalizedOld.Length, normalizedNew.Length);
-        double changePercentage = (double)editDistance / maxLength * 100;
-
-        Console.WriteLine($"Edit distance: {editDistance}, Max length: {maxLength}, Change: {changePercentage:F2}%");
-
-        // If less than 5% of the text changed, consider it trivial
-        const double TrivialThreshold = 5.0;
-        if (changePercentage < TrivialThreshold)
-        {
-            Console.WriteLine($"Edit is trivial (< {TrivialThreshold}% change)");
-            return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Normalize text for comparison by removing extra whitespace and normalizing line endings
-    /// </summary>
-    private string NormalizeText(string text)
-    {
-        // Replace all whitespace sequences with single space
-        var normalized = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ");
-        return normalized.Trim().ToLowerInvariant();
-    }
-
-    /// <summary>
-    /// Calculate Levenshtein distance between two strings
-    /// </summary>
-    private int CalculateLevenshteinDistance(string source, string target)
-    {
-        if (string.IsNullOrEmpty(source))
-        {
-            return target?.Length ?? 0;
-        }
-
-        if (string.IsNullOrEmpty(target))
-        {
-            return source.Length;
-        }
-
-        int sourceLength = source.Length;
-        int targetLength = target.Length;
-
-        var distance = new int[sourceLength + 1, targetLength + 1];
-
-        for (int i = 0; i <= sourceLength; i++)
-        {
-            distance[i, 0] = i;
-        }
-
-        for (int j = 0; j <= targetLength; j++)
-        {
-            distance[0, j] = j;
-        }
-
-        for (int i = 1; i <= sourceLength; i++)
-        {
-            for (int j = 1; j <= targetLength; j++)
-            {
-                int cost = (target[j - 1] == source[i - 1]) ? 0 : 1;
-
-                distance[i, j] = Math.Min(
-                    Math.Min(distance[i - 1, j] + 1, distance[i, j - 1] + 1),
-                    distance[i - 1, j - 1] + cost);
-            }
-        }
-
-        return distance[sourceLength, targetLength];
+        Console.WriteLine($"Posted revised engineer brief (iteration {state.BriefIterationCount})");
     }
 }

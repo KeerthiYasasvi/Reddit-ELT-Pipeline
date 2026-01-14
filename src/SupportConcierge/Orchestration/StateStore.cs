@@ -100,12 +100,7 @@ public class BotState
     public bool IsFinalized { get; set; }
     public DateTime? FinalizedAt { get; set; }
     
-    // Scenario 1ii: Multi-user support with commands
-    public List<string> OptedOutUsers { get; set; } = new();  // Users who used /stop
-    public Dictionary<string, int> SubIssueUsers { get; set; } = new();  // User -> Round count mapping for /diagnose users
-    public string? CurrentSubIssueUser { get; set; }  // Track which sub-issue user is currently being processed
-    
-    // Scenario 8: Smart edit detection
-    public int EditCount { get; set; } = 0;  // Track number of times issue has been edited
-    public string? LastProcessedBody { get; set; }  // Cache last processed issue body to detect changes
+    // Scenario 7: Track brief feedback and iteration
+    public long? EngineerBriefCommentId { get; set; }
+    public int BriefIterationCount { get; set; }
 }
