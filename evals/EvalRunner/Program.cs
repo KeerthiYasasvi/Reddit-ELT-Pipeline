@@ -14,12 +14,23 @@ public class Program
     {
         Console.WriteLine("=== Support Concierge Evaluation Runner ===\n");
 
-        // Check required environment variables
-        var openaiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-        if (string.IsNullOrEmpty(openaiKey))
+        // Check for dry-run mode
+        var dryRun = args.Contains("--dry-run") || args.Contains("-d");
+        
+        if (dryRun)
         {
-            Console.WriteLine("ERROR: OPENAI_API_KEY environment variable required");
-            return 1;
+            Console.WriteLine("Running in DRY-RUN mode (simulated results)\n");
+        }
+        else
+        {
+            // Check required environment variables
+            var openaiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+            if (string.IsNullOrEmpty(openaiKey))
+            {
+                Console.WriteLine("ERROR: OPENAI_API_KEY environment variable required");
+                Console.WriteLine("       Use --dry-run flag to generate sample report without API calls");
+                return 1;
+            }
         }
 
         // Set up environment
@@ -50,7 +61,17 @@ public class Program
 
             try
             {
-                var result = await RunScenarioAsync(scenarioFile);
+                EvalResult result;
+                
+                if (dryRun)
+                {
+                    result = GenerateMockResult(scenarioName);
+                }
+                else
+                {
+                    result = await RunScenarioAsync(scenarioFile);
+                }
+                
                 results.Add(result);
 
                 Console.WriteLine($"✓ Category: {result.DetectedCategory}");
@@ -115,11 +136,17 @@ public class Program
             }
         }
 
-        // Save report to file
+        // Save JSON report
         var reportPath = Path.Combine(Directory.GetCurrentDirectory(), "eval_report.json");
         var reportJson = JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true });
         await File.WriteAllTextAsync(reportPath, reportJson);
-        Console.WriteLine($"\nReport saved to: {reportPath}");
+        Console.WriteLine($"\nJSON report saved to: {reportPath}");
+
+        // Generate Markdown report
+        var mdReportPath = Path.Combine(Directory.GetCurrentDirectory(), "EVAL_REPORT.md");
+        var mdReport = GenerateMarkdownReport(results);
+        await File.WriteAllTextAsync(mdReportPath, mdReport);
+        Console.WriteLine($"Markdown report saved to: {mdReportPath}");
 
         return successful == total ? 0 : 1;
     }
@@ -236,6 +263,156 @@ public class Program
         }
 
         return result;
+    }
+
+    private static EvalResult GenerateMockResult(string scenarioName)
+    {
+        // Generate realistic mock results for demonstration
+        var random = new Random(scenarioName.GetHashCode()); // Deterministic based on name
+        
+        var result = new EvalResult
+        {
+            ScenarioName = scenarioName,
+            Success = random.Next(100) < 90, // 90% success rate
+        };
+
+        if (!result.Success)
+        {
+            result.ErrorMessage = "Simulated failure for demonstration";
+            return result;
+        }
+
+        // Mock successful result
+        var categories = new[] { "build", "runtime", "database", "api", "ui" };
+        result.DetectedCategory = categories[random.Next(categories.Length)];
+        result.CompletenessScore = random.Next(65, 100);
+        result.ExtractedFieldCount = random.Next(5, 12);
+        result.IsActionable = result.CompletenessScore >= 70;
+
+        // Occasionally add hallucination warnings
+        if (random.Next(100) < 20)
+        {
+            result.HallucinationWarnings.Add("Field 'version' value may be hallucinated (no matching terms in source)");
+        }
+
+        return result;
+    }
+
+    private static string GenerateMarkdownReport(List<EvalResult> results)
+    {
+        var sb = new System.Text.StringBuilder();
+        var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC");
+        
+        sb.AppendLine("# Support Concierge Evaluation Report");
+        sb.AppendLine();
+        sb.AppendLine($"**Generated:** {timestamp}");
+        sb.AppendLine();
+
+        // Summary Section
+        sb.AppendLine("## 📊 Summary");
+        sb.AppendLine();
+        
+        var successful = results.Count(r => r.Success);
+        var total = results.Count;
+        var successRate = total > 0 ? (double)successful / total * 100 : 0;
+        
+        sb.AppendLine($"- **Total Scenarios:** {total}");
+        sb.AppendLine($"- **Successful:** {successful}/{total} ({successRate:F1}%)");
+        sb.AppendLine($"- **Failed:** {total - successful}");
+        sb.AppendLine();
+
+        // Metrics Section
+        if (results.Any(r => r.Success))
+        {
+            var avgScore = results.Where(r => r.Success).Average(r => r.CompletenessScore);
+            var avgFields = results.Where(r => r.Success).Average(r => r.ExtractedFieldCount);
+            var actionableRate = results.Where(r => r.Success).Count(r => r.IsActionable) / 
+                                 (double)results.Count(r => r.Success) * 100;
+            var hallucinationCount = results.Where(r => r.Success).Sum(r => r.HallucinationWarnings.Count);
+            
+            sb.AppendLine("## 🎯 Performance Metrics");
+            sb.AppendLine();
+            sb.AppendLine("| Metric | Value |");
+            sb.AppendLine("|--------|-------|");
+            sb.AppendLine($"| Average Completeness Score | {avgScore:F1}/100 |");
+            sb.AppendLine($"| Average Fields Extracted | {avgFields:F1} |");
+            sb.AppendLine($"| Actionable Rate | {actionableRate:F1}% |");
+            sb.AppendLine($"| Hallucination Warnings | {hallucinationCount} |");
+            sb.AppendLine();
+        }
+
+        // Detailed Results Section
+        sb.AppendLine("## 📋 Detailed Results");
+        sb.AppendLine();
+
+        foreach (var result in results.OrderBy(r => r.ScenarioName))
+        {
+            var status = result.Success ? "✅" : "❌";
+            sb.AppendLine($"### {status} {result.ScenarioName}");
+            sb.AppendLine();
+            
+            if (!result.Success)
+            {
+                sb.AppendLine($"**Status:** Failed");
+                sb.AppendLine();
+                sb.AppendLine($"**Error:** {result.ErrorMessage}");
+                sb.AppendLine();
+            }
+            else
+            {
+                sb.AppendLine($"**Status:** Passed");
+                sb.AppendLine();
+                sb.AppendLine($"- **Detected Category:** `{result.DetectedCategory}`");
+                sb.AppendLine($"- **Completeness Score:** {result.CompletenessScore}/100");
+                sb.AppendLine($"- **Fields Extracted:** {result.ExtractedFieldCount}");
+                sb.AppendLine($"- **Actionable:** {(result.IsActionable ? "Yes" : "No")}");
+                
+                if (result.HallucinationWarnings.Count > 0)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("**⚠️ Warnings:**");
+                    foreach (var warning in result.HallucinationWarnings)
+                    {
+                        sb.AppendLine($"- {warning}");
+                    }
+                }
+                
+                sb.AppendLine();
+            }
+        }
+
+        // Grade Section
+        sb.AppendLine("## 🏆 Overall Grade");
+        sb.AppendLine();
+        
+        var grade = successRate >= 90 ? "A (Excellent)" :
+                    successRate >= 80 ? "B (Good)" :
+                    successRate >= 70 ? "C (Satisfactory)" :
+                    successRate >= 60 ? "D (Needs Improvement)" :
+                                        "F (Poor)";
+        
+        sb.AppendLine($"**{grade}** - {successRate:F1}% success rate");
+        sb.AppendLine();
+        
+        if (successRate >= 80)
+        {
+            sb.AppendLine("✨ The bot is performing well across test scenarios.");
+        }
+        else if (successRate >= 60)
+        {
+            sb.AppendLine("⚠️ The bot needs improvement in handling some scenarios.");
+        }
+        else
+        {
+            sb.AppendLine("❌ The bot requires significant improvements.");
+        }
+        
+        sb.AppendLine();
+        sb.AppendLine("---");
+        sb.AppendLine();
+        sb.AppendLine("*This report was automatically generated by the Support Concierge Eval Runner.*");
+
+        return sb.ToString();
     }
 }
 

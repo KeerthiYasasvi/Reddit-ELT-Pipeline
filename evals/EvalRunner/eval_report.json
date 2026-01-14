@@ -1,0 +1,22 @@
+[
+  {
+    "ScenarioName": "sample_issue_build_missing_logs",
+    "Success": true,
+    "ErrorMessage": null,
+    "DetectedCategory": "runtime",
+    "CompletenessScore": 92,
+    "IsActionable": true,
+    "ExtractedFieldCount": 7,
+    "HallucinationWarnings": []
+  },
+  {
+    "ScenarioName": "sample_issue_runtime_crash",
+    "Success": false,
+    "ErrorMessage": "Simulated failure for demonstration",
+    "DetectedCategory": "",
+    "CompletenessScore": 0,
+    "IsActionable": false,
+    "ExtractedFieldCount": 0,
+    "HallucinationWarnings": []
+  }
+]
