@@ -112,7 +112,7 @@ public class Orchestrator
         }
 
         // SCENARIO 1 FIX: Check if issue is already finalized
-        // But allow if comment author is using /diagnose or is the original author
+        // But allow if comment author is using /diagnose or is the original author or is a tracked sub-issue user
         bool isOriginalAuthor = commentAuthor?.Equals(issue.User.Login, StringComparison.OrdinalIgnoreCase) ?? false;
         bool isDiagnoseCommand = false;
         
@@ -122,7 +122,10 @@ public class Orchestrator
             isDiagnoseCommand = (command == "diagnose");
         }
 
-        if (currentState != null && currentState.IsFinalized && !isDiagnoseCommand && !isOriginalAuthor)
+        // Check if commenter is being tracked as sub-issue user (needed for finalization check)
+        bool isTrackedSubIssueUserEarly = commentAuthor != null && currentState != null && currentState.SubIssueUsers.ContainsKey(commentAuthor.ToLowerInvariant());
+
+        if (currentState != null && currentState.IsFinalized && !isDiagnoseCommand && !isOriginalAuthor && !isTrackedSubIssueUserEarly)
         {
             Console.WriteLine($"Issue already finalized and no /diagnose command. Skipping non-author processing.");
             return;
