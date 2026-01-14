@@ -139,6 +139,18 @@ public class CommentComposer
             sb.AppendLine();
         }
 
+        // Validation Confirmations (Scenario 7a)
+        if (brief.Validation_Confirmations.Count > 0)
+        {
+            sb.AppendLine("### ❓ Please Confirm");
+            sb.AppendLine("Before proceeding with the steps above, please confirm:");
+            foreach (var confirmation in brief.Validation_Confirmations)
+            {
+                sb.AppendLine($"- {confirmation}");
+            }
+            sb.AppendLine();
+        }
+
         // Possible Duplicates
         if (brief.Possible_Duplicates.Count > 0)
         {

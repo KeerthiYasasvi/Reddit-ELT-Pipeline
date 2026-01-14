@@ -430,6 +430,9 @@ public class EngineerBrief
     [JsonPropertyName("next_steps")]
     public List<string> Next_Steps { get; set; } = new();
 
+    [JsonPropertyName("validation_confirmations")]
+    public List<string> Validation_Confirmations { get; set; } = new();
+
     [JsonPropertyName("possible_duplicates")]
     public List<DuplicateReference> Possible_Duplicates { get; set; } = new();
 }

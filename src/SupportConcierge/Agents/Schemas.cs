@@ -159,6 +159,15 @@ public static class Schemas
       },
       ""description"": ""Suggested diagnostic or remediation steps grounded in repo docs""
     },
+    ""validation_confirmations"": {
+      ""type"": ""array"",
+      ""items"": {
+        ""type"": ""string""
+      },
+      ""description"": ""2-3 yes/no questions to confirm the suggested steps apply to this specific issue"",
+      ""minItems"": 2,
+      ""maxItems"": 3
+    },
     ""possible_duplicates"": {
       ""type"": ""array"",
       ""items"": {
@@ -179,7 +188,7 @@ public static class Schemas
       ""maxItems"": 5
     }
   },
-  ""required"": [""summary"", ""symptoms"", ""environment"", ""key_evidence"", ""next_steps""],
+  ""required"": [""summary"", ""symptoms"", ""environment"", ""key_evidence"", ""next_steps"", ""validation_confirmations""],
   ""additionalProperties"": false
 }";
 }
