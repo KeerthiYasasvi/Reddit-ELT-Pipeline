@@ -317,6 +317,9 @@ public class Orchestrator
         state.AskedFields.AddRange(questions.Select(q => q.Field));
         state.CompletenessScore = scoring.Score;
         state.LastUpdated = DateTime.UtcNow;
+        
+        // Scenario 3: Prune state to prevent unbounded growth
+        state = stateStore.PruneState(state);
 
         // Compose and post comment
         var commentBody = commentComposer.ComposeFollowUpComment(questions, state.LoopCount);
