@@ -1,3 +1,6 @@
+using System;
+using System.Linq;
+
 namespace SupportConcierge.Agents;
 
 public static class Prompts
@@ -42,12 +45,26 @@ Extract the information into JSON format. Use exact text from the issue/comments
             ? $"\n\nFields already asked about (do NOT ask again): {string.Join(", ", askedBefore)}"
             : "";
 
+        var categoryGuidance = category.ToLowerInvariant() switch
+        {
+            "build" => "\n\nCategory guidance: For build issues, ask for the exact build command and a short snippet of the failing build log around the first error (not the whole log). If not provided, also ask for OS and build tool versions.",
+            "runtime" => "\n\nCategory guidance: For runtime crashes, ask for the full stack trace, exact error message, minimal repro steps, and sample input that triggers the crash.",
+            _ => string.Empty
+        };
+
+        var needsLogs = missingFields.Any(f => f.Equals("build_log", StringComparison.OrdinalIgnoreCase));
+        var needsStack = missingFields.Any(f => f.Equals("stack_trace", StringComparison.OrdinalIgnoreCase));
+        var logHint = needsLogs || needsStack
+            ? "\n\nLog/trace request: If logs or stack traces are missing, request the first error block (a few lines before and after the first failure), not the entire file." 
+            : string.Empty;
+
         return $@"You are a helpful GitHub support bot. The user has submitted a {category} issue, but it's missing critical information. Respond with a JSON formatted list of questions.
 
 Issue so far:
 {issueBody}
 
 Missing fields that need to be collected: {string.Join(", ", missingFields)}{askedList}
+{categoryGuidance}{logHint}
 
 Generate up to 3 targeted, friendly follow-up questions to gather the missing information in JSON format. Be specific about what format you need (e.g., ""full error message including stack trace"", ""exact version number""). Make questions concise and actionable.
 
