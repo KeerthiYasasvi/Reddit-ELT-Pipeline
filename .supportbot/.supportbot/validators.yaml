@@ -1,0 +1,33 @@
+junk_patterns:
+  - "(?i)^(no response|n/?a|idk|don'?t know|not sure|none|nil|null)$"
+  - "(?i)^(tbd|todo|\\.\\.\\.|—|–)$"
+  - "^\\s*$"
+  - "(?i)^(same|ditto|as above)$"
+
+format_validators:
+  version: "^\\d+\\.\\d+(\\.\\d+)?([\\-\\+][a-zA-Z0-9\\.\\-]+)?$"
+  email: "^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$"
+  url: "^https?://[^\\s]+$"
+  semver: "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$"
+
+secret_patterns:
+  - "(?i)(api[_\\-]?key|apikey)\\s*[:=]\\s*['\"]?([a-zA-Z0-9_\\-]{20,})['\"]?"
+  - "(?i)(secret|password|passwd|pwd)\\s*[:=]\\s*['\"]?([^\\s'\"]{8,})['\"]?"
+  - "(?i)(token|access[_\\-]?token)\\s*[:=]\\s*['\"]?([a-zA-Z0-9_\\-\\.]{20,})['\"]?"
+  - "(?i)(authorization:\\s*bearer\\s+)([a-zA-Z0-9_\\-\\.]{20,})"
+  - "(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36,}"
+  - "(?i)(aws[_\\-]?access[_\\-]?key[_\\-]?id)\\s*[:=]\\s*['\"]?([A-Z0-9]{20})['\"]?"
+  - "(?i)(aws[_\\-]?secret[_\\-]?access[_\\-]?key)\\s*[:=]\\s*['\"]?([A-Za-z0-9/+=]{40})['\"]?"
+
+contradiction_rules:
+  - name: os_version_mismatch
+    description: Operating system doesn't support claimed version
+    field1: operating_system
+    field2: version
+    condition: "windows_with_bash_native"
+
+  - name: runtime_build_mismatch
+    description: Runtime version incompatible with build requirements
+    field1: runtime_version
+    field2: build_tool_version
+    condition: "version_mismatch"

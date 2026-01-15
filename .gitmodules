@@ -1,0 +1,3 @@
+[submodule ".github-bot"]
+	path = .github-bot
+	url = https://github.com/KeerthiYasasvi/github-issues-support-bot.git

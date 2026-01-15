@@ -1,0 +1,63 @@
+routes:
+  - category: setup
+    labels:
+      - "type: setup"
+      - "needs-triage"
+    assignees: []
+
+  - category: build
+    labels:
+      - "type: build"
+      - "needs-investigation"
+    assignees: []
+
+  - category: runtime
+    labels:
+      - "type: runtime"
+      - "priority: high"
+    assignees: []
+
+  - category: bug
+    labels:
+      - "type: bug"
+      - "needs-repro"
+    assignees: []
+
+  - category: docs
+    labels:
+      - "type: docs"
+      - "good-first-issue"
+    assignees: []
+
+  # Reddit-ELT-Pipeline specific routing
+  - category: airflow_dag
+    labels:
+      - "component: airflow"
+      - "type: dag-failure"
+      - "priority: high"
+    assignees:
+      - "KeerthiYasasvi"
+
+  - category: reddit_api
+    labels:
+      - "component: reddit-api"
+      - "type: extraction"
+    assignees:
+      - "KeerthiYasasvi"
+
+  - category: dbt_transformation
+    labels:
+      - "component: dbt"
+      - "type: transformation"
+    assignees:
+      - "KeerthiYasasvi"
+
+  - category: postgres_database
+    labels:
+      - "component: postgres"
+      - "type: database"
+    assignees:
+      - "KeerthiYasasvi"
+
+escalation_mentions:
+  - "@KeerthiYasasvi"
