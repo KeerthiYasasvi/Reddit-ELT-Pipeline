@@ -7,7 +7,7 @@ on:
     types: [created]
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 jobs:
@@ -18,6 +18,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
@@ -34,7 +35,29 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4' }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4o' }}
           SUPPORTBOT_SPEC_DIR: ${{ vars.SUPPORTBOT_SPEC_DIR || '.supportbot' }}
           SUPPORTBOT_BOT_USERNAME: 'github-actions[bot]'
         run: dotnet run --project .github-bot/src/SupportConcierge/SupportConcierge.csproj --configuration Release --no-build
+
+      - name: Commit and push metrics
+        run: |
+          # Configure git
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Check if metrics file exists and has changes
+          if [ -f ".supportbot/metrics/performance.json" ]; then
+            git add .supportbot/metrics/performance.json
+            
+            # Only commit if there are staged changes
+            if ! git diff --cached --quiet; then
+              git commit -m "📊 Update bot performance metrics [skip ci]"
+              git push
+              echo "✅ Metrics committed and pushed successfully"
+            else
+              echo "ℹ️ No metrics changes to commit"
+            fi
+          else
+            echo "ℹ️ No metrics file found yet"
+          fi
