@@ -1,0 +1,77 @@
+{
+  "Metadata": {
+    "last_updated": "2026-01-17T02:39:19.3703334Z",
+    "total_issues_processed": 1,
+    "data_start_date": "2026-01-17T02:39:19.3601746Z"
+  },
+  "Overall": {
+    "Summary": {
+      "total_issues_processed": 1,
+      "success_rate": 1,
+      "average_completeness_score": 30,
+      "average_field_extraction_rate": 4.4,
+      "average_duration_seconds": 8.9720187
+    },
+    "CategoryBreakdown": {
+      "postgres_database": {
+        "count": 1,
+        "avg_completeness": 30,
+        "avg_fields_extracted": 4.4
+      }
+    },
+    "UserEngagement": {
+      "total_follow_up_rounds": 1,
+      "avg_rounds_per_issue": 1,
+      "stop_commands_used": 0,
+      "diagnose_commands_used": 0,
+      "escalate_commands_used": 0,
+      "users_responded_to_questions": 0,
+      "users_never_responded": 1
+    },
+    "Actionability": {
+      "actionable_issues": 0,
+      "non_actionable_issues": 1,
+      "escalated_to_maintainer": 0,
+      "resolved_without_maintainer": 0
+    },
+    "HallucinationDetection": {
+      "total_hallucinations_detected": 0,
+      "avg_confidence": 0,
+      "false_positive_rate": 0
+    }
+  },
+  "MonthlyBreakdown": {
+    "2026-01": {
+      "period": "2026-01",
+      "issues_processed": 1,
+      "success_rate": 1,
+      "average_completeness_score": 30,
+      "average_field_extraction_rate": 4.4,
+      "users_responded": 0,
+      "escalations": 0
+    }
+  },
+  "RecentRuns": [
+    {
+      "RunId": -520295081,
+      "IssueNumber": 54,
+      "Timestamp": "2026-01-17T02:39:19.3585547Z",
+      "Category": "postgres_database",
+      "Completeness": 30,
+      "FieldsExtracted": 22,
+      "TotalFields": 5,
+      "Actionable": false,
+      "FollowUpRound": 1,
+      "DurationSeconds": 8.9720187,
+      "IsSuccessful": true,
+      "UserResponded": false,
+      "IsEscalated": false,
+      "StopCommandUsed": false,
+      "DiagnoseCommandUsed": false,
+      "EscalateCommandUsed": false,
+      "HallucinationCount": 0,
+      "HallucinationConfidence": 0,
+      "IsHallucinationConfirmed": false
+    }
+  ]
+}
