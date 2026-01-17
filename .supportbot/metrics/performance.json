@@ -1,36 +1,36 @@
 {
   "Metadata": {
-    "last_updated": "2026-01-17T02:39:19.3703334Z",
-    "total_issues_processed": 1,
+    "last_updated": "2026-01-17T02:40:43.7639875Z",
+    "total_issues_processed": 2,
     "data_start_date": "2026-01-17T02:39:19.3601746Z"
   },
   "Overall": {
     "Summary": {
-      "total_issues_processed": 1,
+      "total_issues_processed": 2,
       "success_rate": 1,
       "average_completeness_score": 30,
-      "average_field_extraction_rate": 4.4,
-      "average_duration_seconds": 8.9720187
+      "average_field_extraction_rate": 4.300000000000001,
+      "average_duration_seconds": 9.84509255
     },
     "CategoryBreakdown": {
       "postgres_database": {
-        "count": 1,
+        "count": 2,
         "avg_completeness": 30,
-        "avg_fields_extracted": 4.4
+        "avg_fields_extracted": 4.300000000000001
       }
     },
     "UserEngagement": {
-      "total_follow_up_rounds": 1,
-      "avg_rounds_per_issue": 1,
+      "total_follow_up_rounds": 3,
+      "avg_rounds_per_issue": 1.5,
       "stop_commands_used": 0,
       "diagnose_commands_used": 0,
       "escalate_commands_used": 0,
       "users_responded_to_questions": 0,
-      "users_never_responded": 1
+      "users_never_responded": 2
     },
     "Actionability": {
       "actionable_issues": 0,
-      "non_actionable_issues": 1,
+      "non_actionable_issues": 2,
       "escalated_to_maintainer": 0,
       "resolved_without_maintainer": 0
     },
@@ -43,15 +43,36 @@
   "MonthlyBreakdown": {
     "2026-01": {
       "period": "2026-01",
-      "issues_processed": 1,
+      "issues_processed": 2,
       "success_rate": 1,
       "average_completeness_score": 30,
-      "average_field_extraction_rate": 4.4,
+      "average_field_extraction_rate": 4.300000000000001,
       "users_responded": 0,
       "escalations": 0
     }
   },
   "RecentRuns": [
+    {
+      "RunId": -520294997,
+      "IssueNumber": 54,
+      "Timestamp": "2026-01-17T02:40:43.7407828Z",
+      "Category": "postgres_database",
+      "Completeness": 30,
+      "FieldsExtracted": 21,
+      "TotalFields": 5,
+      "Actionable": false,
+      "FollowUpRound": 2,
+      "DurationSeconds": 10.7181664,
+      "IsSuccessful": true,
+      "UserResponded": false,
+      "IsEscalated": false,
+      "StopCommandUsed": false,
+      "DiagnoseCommandUsed": false,
+      "EscalateCommandUsed": false,
+      "HallucinationCount": 0,
+      "HallucinationConfidence": 0,
+      "IsHallucinationConfirmed": false
+    },
     {
       "RunId": -520295081,
       "IssueNumber": 54,
