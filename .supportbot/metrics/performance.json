@@ -1,18 +1,23 @@
 {
   "Metadata": {
-    "last_updated": "2026-01-17T02:42:27.5765728Z",
-    "total_issues_processed": 3,
+    "last_updated": "2026-01-17T04:18:26.8028556Z",
+    "total_issues_processed": 4,
     "data_start_date": "2026-01-17T02:39:19.3601746Z"
   },
   "Overall": {
     "Summary": {
-      "total_issues_processed": 3,
+      "total_issues_processed": 4,
       "success_rate": 1,
       "average_completeness_score": 30,
-      "average_field_extraction_rate": 4.333333333333334,
-      "average_duration_seconds": 8.447047866666667
+      "average_field_extraction_rate": 4.416666666666666,
+      "average_duration_seconds": 8.600211325
     },
     "CategoryBreakdown": {
+      "airflow_dag": {
+        "count": 1,
+        "avg_completeness": 30,
+        "avg_fields_extracted": 4.666666666666667
+      },
       "postgres_database": {
         "count": 3,
         "avg_completeness": 30,
@@ -20,17 +25,17 @@
       }
     },
     "UserEngagement": {
-      "total_follow_up_rounds": 5,
-      "avg_rounds_per_issue": 1.6666666666666667,
+      "total_follow_up_rounds": 6,
+      "avg_rounds_per_issue": 1.5,
       "stop_commands_used": 0,
       "diagnose_commands_used": 0,
       "escalate_commands_used": 0,
       "users_responded_to_questions": 0,
-      "users_never_responded": 3
+      "users_never_responded": 4
     },
     "Actionability": {
       "actionable_issues": 0,
-      "non_actionable_issues": 3,
+      "non_actionable_issues": 4,
       "escalated_to_maintainer": 0,
       "resolved_without_maintainer": 0
     },
@@ -43,15 +48,36 @@
   "MonthlyBreakdown": {
     "2026-01": {
       "period": "2026-01",
-      "issues_processed": 3,
+      "issues_processed": 4,
       "success_rate": 1,
       "average_completeness_score": 30,
-      "average_field_extraction_rate": 4.333333333333334,
+      "average_field_extraction_rate": 4.416666666666666,
       "users_responded": 0,
       "escalations": 0
     }
   },
   "RecentRuns": [
+    {
+      "RunId": -520289134,
+      "IssueNumber": 55,
+      "Timestamp": "2026-01-17T04:18:26.7754749Z",
+      "Category": "airflow_dag",
+      "Completeness": 30,
+      "FieldsExtracted": 28,
+      "TotalFields": 6,
+      "Actionable": false,
+      "FollowUpRound": 1,
+      "DurationSeconds": 9.0597017,
+      "IsSuccessful": true,
+      "UserResponded": false,
+      "IsEscalated": false,
+      "StopCommandUsed": false,
+      "DiagnoseCommandUsed": false,
+      "EscalateCommandUsed": false,
+      "HallucinationCount": 0,
+      "HallucinationConfidence": 0,
+      "IsHallucinationConfirmed": false
+    },
     {
       "RunId": -520294893,
       "IssueNumber": 54,
