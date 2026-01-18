@@ -1,18 +1,23 @@
 {
   "Metadata": {
-    "last_updated": "2026-01-17T04:18:26.8028556Z",
-    "total_issues_processed": 4,
+    "last_updated": "2026-01-18T17:06:05.9697297Z",
+    "total_issues_processed": 5,
     "data_start_date": "2026-01-17T02:39:19.3601746Z"
   },
   "Overall": {
     "Summary": {
-      "total_issues_processed": 4,
+      "total_issues_processed": 5,
       "success_rate": 1,
       "average_completeness_score": 30,
-      "average_field_extraction_rate": 4.416666666666666,
-      "average_duration_seconds": 8.600211325
+      "average_field_extraction_rate": 3.5733333333333333,
+      "average_duration_seconds": 8.019454419999999
     },
     "CategoryBreakdown": {
+      "reddit_api": {
+        "count": 1,
+        "avg_completeness": 30,
+        "avg_fields_extracted": 0.2
+      },
       "airflow_dag": {
         "count": 1,
         "avg_completeness": 30,
@@ -25,17 +30,17 @@
       }
     },
     "UserEngagement": {
-      "total_follow_up_rounds": 6,
-      "avg_rounds_per_issue": 1.5,
+      "total_follow_up_rounds": 7,
+      "avg_rounds_per_issue": 1.4,
       "stop_commands_used": 0,
       "diagnose_commands_used": 0,
       "escalate_commands_used": 0,
       "users_responded_to_questions": 0,
-      "users_never_responded": 4
+      "users_never_responded": 5
     },
     "Actionability": {
       "actionable_issues": 0,
-      "non_actionable_issues": 4,
+      "non_actionable_issues": 5,
       "escalated_to_maintainer": 0,
       "resolved_without_maintainer": 0
     },
@@ -48,15 +53,36 @@
   "MonthlyBreakdown": {
     "2026-01": {
       "period": "2026-01",
-      "issues_processed": 4,
+      "issues_processed": 5,
       "success_rate": 1,
       "average_completeness_score": 30,
-      "average_field_extraction_rate": 4.416666666666666,
+      "average_field_extraction_rate": 3.5733333333333333,
       "users_responded": 0,
       "escalations": 0
     }
   },
   "RecentRuns": [
+    {
+      "RunId": -520156675,
+      "IssueNumber": 56,
+      "Timestamp": "2026-01-18T17:06:05.9445181Z",
+      "Category": "reddit_api",
+      "Completeness": 30,
+      "FieldsExtracted": 1,
+      "TotalFields": 5,
+      "Actionable": false,
+      "FollowUpRound": 1,
+      "DurationSeconds": 5.6964268,
+      "IsSuccessful": true,
+      "UserResponded": false,
+      "IsEscalated": false,
+      "StopCommandUsed": false,
+      "DiagnoseCommandUsed": false,
+      "EscalateCommandUsed": false,
+      "HallucinationCount": 0,
+      "HallucinationConfidence": 0,
+      "IsHallucinationConfirmed": false
+    },
     {
       "RunId": -520289134,
       "IssueNumber": 55,
