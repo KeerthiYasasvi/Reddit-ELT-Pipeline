@@ -1,22 +1,22 @@
 {
   "Metadata": {
-    "last_updated": "2026-01-27T17:14:40.7155888Z",
-    "total_issues_processed": 7,
+    "last_updated": "2026-01-27T17:16:34.1031553Z",
+    "total_issues_processed": 8,
     "data_start_date": "2026-01-17T02:39:19.3601746Z"
   },
   "Overall": {
     "Summary": {
-      "total_issues_processed": 7,
+      "total_issues_processed": 8,
       "success_rate": 1,
-      "average_completeness_score": 27.857142857142858,
-      "average_field_extraction_rate": 2.876190476190476,
-      "average_duration_seconds": 9.4742756
+      "average_completeness_score": 32.25,
+      "average_field_extraction_rate": 2.8083333333333336,
+      "average_duration_seconds": 10.660199525
     },
     "CategoryBreakdown": {
       "build": {
-        "count": 1,
-        "avg_completeness": 15,
-        "avg_fields_extracted": 1.6666666666666667
+        "count": 2,
+        "avg_completeness": 39,
+        "avg_fields_extracted": 2
       },
       "reddit_api": {
         "count": 2,
@@ -35,17 +35,17 @@
       }
     },
     "UserEngagement": {
-      "total_follow_up_rounds": 10,
-      "avg_rounds_per_issue": 1.4285714285714286,
+      "total_follow_up_rounds": 12,
+      "avg_rounds_per_issue": 1.5,
       "stop_commands_used": 0,
       "diagnose_commands_used": 0,
       "escalate_commands_used": 0,
       "users_responded_to_questions": 0,
-      "users_never_responded": 7
+      "users_never_responded": 8
     },
     "Actionability": {
       "actionable_issues": 0,
-      "non_actionable_issues": 7,
+      "non_actionable_issues": 8,
       "escalated_to_maintainer": 0,
       "resolved_without_maintainer": 0
     },
@@ -58,15 +58,36 @@
   "MonthlyBreakdown": {
     "2026-01": {
       "period": "2026-01",
-      "issues_processed": 7,
+      "issues_processed": 8,
       "success_rate": 1,
-      "average_completeness_score": 27.857142857142858,
-      "average_field_extraction_rate": 2.876190476190476,
+      "average_completeness_score": 32.25,
+      "average_field_extraction_rate": 2.8083333333333336,
       "users_responded": 0,
       "escalations": 0
     }
   },
   "RecentRuns": [
+    {
+      "RunId": -519378446,
+      "IssueNumber": 57,
+      "Timestamp": "2026-01-27T17:16:34.0777589Z",
+      "Category": "build",
+      "Completeness": 63,
+      "FieldsExtracted": 14,
+      "TotalFields": 6,
+      "Actionable": false,
+      "FollowUpRound": 2,
+      "DurationSeconds": 18.961667,
+      "IsSuccessful": true,
+      "UserResponded": false,
+      "IsEscalated": false,
+      "StopCommandUsed": false,
+      "DiagnoseCommandUsed": false,
+      "EscalateCommandUsed": false,
+      "HallucinationCount": 0,
+      "HallucinationConfidence": 0,
+      "IsHallucinationConfirmed": false
+    },
     {
       "RunId": -519378560,
       "IssueNumber": 57,
